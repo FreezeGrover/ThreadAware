@@ -1,20 +1,22 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from threadaware.paths import database_path
 
-DEFAULT_DB_PATH = Path(os.getenv("THREADAWARE_DB_PATH", "threadaware_runs.sqlite3"))
+
+DEFAULT_DB_PATH = database_path()
 
 
 class RunStore:
     def __init__(self, path: str | Path | None = None) -> None:
-        self.path = Path(path) if path else DEFAULT_DB_PATH
+        self.path = Path(path).expanduser() if path else DEFAULT_DB_PATH
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -48,8 +50,14 @@ class RunStore:
                 """
             )
 
-    def save(self, payload: dict[str, Any], *, target_model: str | None = None,
-             auditor_model: str | None = None, judge_model: str | None = None) -> str:
+    def save(
+        self,
+        payload: dict[str, Any],
+        *,
+        target_model: str | None = None,
+        auditor_model: str | None = None,
+        judge_model: str | None = None,
+    ) -> str:
         run_id = str(uuid4())
         evaluation = payload["evaluation"]
         scenario = payload["scenario"]
