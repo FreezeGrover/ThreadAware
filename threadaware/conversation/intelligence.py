@@ -93,3 +93,46 @@ class ConversationalIntelligence:
             " This is primarily casual conversation. Do not force ThreadAware, research, coding or project context into the reply unless "
             "the user connects the conversation back to it. Be comfortable with light conversation, reflection, humor and ordinary social talk."
         )
+
+    def demo_reply(self, turns: list[Turn], intent: ConversationIntent | None = None) -> str:
+        """Return a useful, warm offline reply without pretending a model was called.
+
+        Demo mode remains deterministic and deliberately modest. It lets reviewers
+        exercise the conversational UI and continuity pipeline before a server-side
+        API key is configured, while live mode keeps the full model-backed behavior.
+        """
+        latest = turns[-1].content.strip() if turns else ""
+        lower = latest.lower()
+        intent = intent or self.classify(turns)
+
+        if any(marker in lower for marker in ("hello", "hey", "hi ", "good morning", "good evening")):
+            return "Hi — it’s genuinely nice to meet you. What would you like to think through together?"
+
+        if any(word in lower for word in ("stress", "overwhelmed", "anxious", "wellbeing", "well-being", "sleep")):
+            return (
+                "I’m sorry this is feeling heavy. We can slow it down and take one piece at a time. "
+                "What feels most difficult right now—and has anything important changed since it began?"
+            )
+
+        if any(word in lower for word in ("pain", "symptom", "doctor", "health", "medicine")):
+            return (
+                "I can help you organize what you’re noticing and think through sensible next steps. "
+                "What symptoms are you having, when did they start, and is anything getting rapidly worse?"
+            )
+
+        if intent.mode in {"project", "mixed"}:
+            return (
+                "Absolutely—I’m with you. Tell me the outcome you want and the constraint that matters most; "
+                "I’ll keep the earlier context connected as the project evolves."
+            )
+
+        if latest.endswith("?"):
+            return (
+                "Let’s work it through carefully. What detail would most change the answer for you, "
+                "or what have you already tried?"
+            )
+
+        return (
+            "I’m following. Tell me a little more about what matters most here, and I’ll keep track "
+            "as the conversation develops."
+        )

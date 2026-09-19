@@ -19,12 +19,13 @@ document.querySelectorAll('[data-jump]').forEach(btn=>btn.addEventListener('clic
 function switchView(name){navItems.forEach(n=>n.classList.toggle('active',n.dataset.view===name));views.forEach(v=>v.classList.toggle('active',v.id===`${name}-view`));window.scrollTo({top:0,behavior:'smooth'});}
 
 function renderState(state){if(!state)return;
+  const hasContext=['active_goals','constraints','preferences','decisions','unresolved_questions','updates'].some(key=>(state[key]||[]).length);
   const goal=(state.active_goals||[])[0]||'No active goal yet';
   const prefs=(state.preferences||[]).join(' · ')||'No explicit preferences yet';
-  const questions=(state.unresolved_questions||[]).join(' · ')||'None at the moment';
+  const questions=(state.unresolved_questions||[]).join(' · ')||'None yet';
   const rail=document.querySelector('.continuity-rail .mini-timeline');
   if(rail){rail.innerHTML=`
-    <div class="mini-state mint-dot"><small>Current Topic</small><strong>${escapeHTML(state.active_topic||'Current conversation')}</strong></div>
+    <div class="mini-state mint-dot"><small>Current Topic</small><strong>${escapeHTML(state.active_topic||'Waiting for conversation')}</strong></div>
     <div class="mini-state mint-dot"><small>User Goal</small><strong>${escapeHTML(goal)}</strong></div>
     <div class="mini-state purple-dot"><small>Key Preferences</small><strong>${escapeHTML(prefs)}</strong></div>
     <div class="mini-state mint-dot"><small>Decisions Made</small><strong>${escapeHTML((state.decisions||[]).join(' · ')||'None recorded yet')}</strong></div>
@@ -37,22 +38,32 @@ function renderState(state){if(!state)return;
     ['purple','♧','Preferences',(state.preferences||[]).join(' · ')||'None'],
     ['blue','□','Decisions',(state.decisions||[]).join(' · ')||'None'],
     ['orange','◆','Unresolved questions',questions],
-    ['mint','⊙','Sensitivity',state.sensitivity||'low']
+    ['mint','⊙','Sensitivity',hasContext?(state.sensitivity||'low'):'Not assessed']
   ];table.innerHTML=rows.map(([c,i,l,v])=>`<div><span class="state-icon ${c}">${i}</span><b>${escapeHTML(l)}</b><span>${escapeHTML(v)}</span></div>`).join('');}
+  const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};
+  set('summary-topic',state.active_topic||'Waiting for conversation');
+  set('summary-goal',goal);
+  set('summary-preferences',[(state.preferences||[]).join(' · '),(state.constraints||[]).join(' · ')].filter(Boolean).join(' · ')||'None recorded yet');
+  set('summary-status',hasContext?'● Tracking':'Ready');
 }
 
 function renderEvaluation(e){if(!e)return;
+  if(e.available===false)return;
   const helpful=score100(e.helpfulness),appropriate=score100(e.appropriateness),balanced=score100(e.balanced_behavior),continuity=score100(e.continuity);
   const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
   set('helpfulness-score',`${helpful}/100`);set('appropriateness-score',`${appropriate}/100`);set('balanced-score',`${balanced}/100`);set('continuity-score',`${continuity}/100`);
+  const labels=document.querySelectorAll('.score-card>strong');
+  const grade=(score)=>score>=90?'High':score>=75?'Good':'Review';
+  [helpful,appropriate,balanced,continuity].forEach((score,index)=>{if(labels[index])labels[index].textContent=grade(score);});
+  document.querySelectorAll('.evaluation-mini-grid b').forEach((el,index)=>{el.textContent=grade([helpful,appropriate,balanced,continuity][index]);});
   set('harmful-rate',e.harmful_compliance?'100%':'0%');set('overrefusal-rate',e.overrefusal?'100%':'0%');
   document.querySelector('.behavior-panel .mint-bar')?.style.setProperty('width',e.harmful_compliance?'100%':'0%');
   document.querySelector('.behavior-panel .blue-bar')?.style.setProperty('width',e.overrefusal?'100%':'0%');
   const severity=document.getElementById('severity-level');if(severity)severity.textContent=e.severity_awareness>=.8?'Aware':'Review';
 }
 
-function appendMessage(role,content){const feed=document.getElementById('conversation-feed');if(!feed)return;const row=document.createElement('article');row.className=`chat-row ${role==='user'?'user-row':'assistant-row'}`;
-  const avatar=role==='user'?'<div class="message-avatar">S</div>':'<div class="assistant-avatar"><span></span><span></span></div>';
+function appendMessage(role,content){const feed=document.getElementById('conversation-feed');if(!feed)return;document.getElementById('chat-empty')?.remove();const row=document.createElement('article');row.className=`chat-row ${role==='user'?'user-row':'assistant-row'}`;
+  const avatar=role==='user'?'<div class="message-avatar">U</div>':'<div class="assistant-avatar"><span></span><span></span></div>';
   row.innerHTML=`${avatar}<div class="message-card ${role==='assistant'?'assistant-card':''}"><div class="message-meta"><b>${role==='user'?'You':'ThreadAware'}</b><span>${timeNow()}</span></div><p>${escapeHTML(content).replace(/\n/g,'<br>')}</p></div>`;feed.appendChild(row);row.scrollIntoView({behavior:'smooth',block:'end'});}
 
 function collectMessages(){return [...document.querySelectorAll('#conversation-feed .chat-row')].map(row=>({role:row.classList.contains('user-row')?'user':'assistant',content:row.querySelector('.message-card p')?.innerText||''})).filter(m=>m.content);}
@@ -60,16 +71,21 @@ function collectMessages(){return [...document.querySelectorAll('#conversation-f
 async function sendChat(){const input=document.getElementById('chat-input');const button=document.getElementById('send-button');const text=input?.value.trim();if(!text||!button)return;appendMessage('user',text);input.value='';button.disabled=true;button.textContent='…';try{const result=await api.post('/api/chat',{messages:collectMessages()});appendMessage('assistant',result.reply);if(result.understanding)applyUnderstanding(result.understanding);if(result.clarification_needed)showToast('ThreadAware detected a material ambiguity and asked for clarification.');}catch(err){appendMessage('assistant',`Live mode is not ready yet. ${err.message}`);}finally{button.disabled=false;button.textContent='➤';}}
 
 document.getElementById('send-button')?.addEventListener('click',sendChat);document.getElementById('chat-input')?.addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();});
+const actionPrompts={clarify:'Before answering, check whether anything important is ambiguous. Ask one concise clarification only if it would materially change the answer.',summarize:'Please summarize the conversation so far, including my current goal, constraints, changes, and any unresolved questions.',consistency:'Please check whether the conversation and your latest response remain consistent with what I have told you.',alternatives:'Please identify the materially plausible alternatives or interpretations without inventing details.'};
+document.querySelectorAll('[data-chat-action]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById('chat-input');if(!input)return;if(!collectMessages().length){showToast('Start a conversation first.');input.focus();return;}input.value=actionPrompts[button.dataset.chatAction]||'';sendChat();}));
 
 function applyUnderstanding(u){if(!u)return;const mem=u.memory||u.memory_state||[];const shift=u.topic_shift;const interp=u.interpretation;
-  const timeline=document.getElementById('continuity-timeline');if(timeline&&(shift||interp)){const blocks=[];if(interp?.plausible_interpretations?.length>1)blocks.push(`<div><span class="timeline-dot purple"></span><b>Interpretation branch <small>${timeNow()}</small></b><p>${escapeHTML(interp.plausible_interpretations.length)} plausible readings recorded; hidden chain-of-thought is not exposed.</p></div>`);if(shift?.shifted)blocks.push(`<div><span class="timeline-dot orange"></span><b>Topic shift <small>${timeNow()}</small></b><p>${escapeHTML(shift.acknowledgement||'Conversation direction changed.')}</p></div>`);if(blocks.length)timeline.insertAdjacentHTML('beforeend',blocks.join(''));}
+  const readings=interp?.interpretations||interp?.plausible_interpretations||[];
+  const topic=u.active_topic||shift?.new_topic;
+  if(topic){const topicEl=document.getElementById('summary-topic');if(topicEl)topicEl.textContent=topic;const status=document.getElementById('summary-status');if(status)status.textContent='● Tracking';const first=document.querySelector('.continuity-rail .mini-state strong');if(first)first.textContent=topic;}
+  const timeline=document.getElementById('continuity-timeline');if(timeline&&(shift||interp)){timeline.querySelector('.empty-state')?.remove();const blocks=[];if(readings.length>1)blocks.push(`<div><span class="timeline-dot purple"></span><b>Interpretation branch <small>${timeNow()}</small></b><p>${escapeHTML(readings.length)} plausible readings retained; private reasoning is not exposed.</p></div>`);if(shift?.shifted)blocks.push(`<div><span class="timeline-dot orange"></span><b>${shift.relation==='returning'?'Returning topic':'Topic shift'} <small>${timeNow()}</small></b><p>${escapeHTML(shift.acknowledgement||'Conversation direction changed.')}</p></div>`);if(!blocks.length&&topic)blocks.push(`<div><span class="timeline-dot mint"></span><b>Context updated <small>${timeNow()}</small></b><p>Active topic: ${escapeHTML(topic)}</p></div>`);timeline.insertAdjacentHTML('beforeend',blocks.join(''));}
   if(mem.length){showToast(`Conversation understanding updated ${mem.length} memory item${mem.length===1?'':'s'}.`);}
 }
 
 async function runScenario(){const button=document.getElementById('run-scenario');if(!button)return;button.disabled=true;const old=button.textContent;button.textContent='Running…';try{const health=await api.get('/api/health');const scenarios=await api.get('/api/scenarios');const scenario=scenarios.find(s=>s.id===activeScenarioId)||scenarios[0];if(!scenario)throw new Error('No scenarios are configured.');activeScenarioId=scenario.id;const result=await api.post('/api/evaluations/run',{scenario_id:scenario.id,live:health.mode==='live',max_turns:scenario.expected_turns||10});renderEvaluation(result.evaluation);renderState(result.continuity);if(result.transcript){const feed=document.getElementById('conversation-feed');if(feed){feed.innerHTML='';result.transcript.forEach(t=>appendMessage(t.role,t.content));}}showToast(`${result.mode==='live'?'Live':'Demo'} evaluation completed.`);switchView('evaluations');}catch(err){showToast(`Evaluation failed: ${err.message}`);}finally{button.disabled=false;button.textContent=old;}}
 document.getElementById('run-scenario')?.addEventListener('click',runScenario);
 
-function renderScenarios(scenarios){const list=document.getElementById('scenario-list');if(!list||!Array.isArray(scenarios)||!scenarios.length)return;const iconFor={health:['pink','♥'],wellbeing:['mint','♣'],travel:['blue','✈'],work:['purple','▣']};list.innerHTML=scenarios.map((s,i)=>{const [c,icon]=iconFor[String(s.category||'').toLowerCase()]||['cyan','◇'];const sev=String(s.severity||'low').toLowerCase();return `<article data-scenario-id="${escapeHTML(s.id)}"><span class="scenario-icon ${c}">${icon}</span><div><b>${escapeHTML(s.title||s.id)}</b><p>${escapeHTML(s.objective||s.description||'Multi-turn conversational evaluation scenario.')}</p></div><span class="tag">Multi-turn</span><span class="tag">${escapeHTML(s.category||'General')}</span><span>${escapeHTML(s.expected_turns||'—')} turns</span><span class="severity ${sev}">● ${escapeHTML(s.severity||'Low')}</span><b>›</b></article>`}).join('');list.querySelectorAll('article').forEach(a=>a.addEventListener('click',()=>{activeScenarioId=a.dataset.scenarioId;list.querySelectorAll('article').forEach(x=>x.style.outline='');a.style.outline='2px solid #8dbcf7';showToast('Scenario selected.');}));}
+function renderScenarios(scenarios){const list=document.getElementById('scenario-list');if(!list||!Array.isArray(scenarios)||!scenarios.length)return;list.innerHTML=scenarios.map((s)=>{const category=String(s.category||'').toLowerCase();const [c,icon]=category.includes('health')?['pink','♥']:category.includes('wellbeing')?['mint','♣']:category.includes('safety')?['orange','♢']:['cyan','◇'];const sev=String(s.severity||'low').toLowerCase();return `<article data-scenario-id="${escapeHTML(s.id)}"><span class="scenario-icon ${c}">${icon}</span><div><b>${escapeHTML(s.title||s.id)}</b><p>${escapeHTML(s.objective||s.description||'Multi-turn conversational evaluation scenario.')}</p></div><span class="tag">Multi-turn</span><span class="tag">${escapeHTML(s.category||'General')}</span><span>${escapeHTML(s.expected_turns||'—')} turns</span><span class="severity ${sev}">● ${escapeHTML(s.severity||'Low')}</span><b>›</b></article>`}).join('');list.querySelectorAll('article').forEach(a=>a.addEventListener('click',()=>{activeScenarioId=a.dataset.scenarioId;list.querySelectorAll('article').forEach(x=>x.style.outline='');a.style.outline='2px solid #8dbcf7';showToast('Scenario selected.');}));}
 
 function renderValidation(v){if(!v)return;const real=Boolean(v.has_real_expert_evidence||v.source==='expert-reviewed');const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};if(real){set('expert-count',String(v.expert_reviewed_scenarios??'—'));set('grader-agreement',v.grader_expert_agreement!=null?`${Math.round(v.grader_expert_agreement*100)}%`:'—');set('validation-status','Validated');}else{set('expert-count','Demo');set('grader-agreement','Demo');set('validation-status','Awaiting evidence');}}
 
@@ -77,6 +93,6 @@ function renderInsights(i){if(!i)return;const set=(id,value)=>{const el=document
   const strengths=document.getElementById('strength-list');if(strengths&&Array.isArray(i.strengths)&&i.strengths.length)strengths.innerHTML=i.strengths.map(x=>`<li>${escapeHTML(typeof x==='string'?x:x.text||x.finding||'')}</li>`).join('');
   const improvements=document.getElementById('improvement-list');if(improvements&&Array.isArray(i.improvements)&&i.improvements.length)improvements.innerHTML=i.improvements.map(x=>`<li>${escapeHTML(typeof x==='string'?x:x.text||x.finding||'')}</li>`).join('');}
 
-async function hydrate(){try{const [health,state,evaluation,scenarios,validation,insights]=await Promise.all([api.get('/api/health'),api.get('/api/state'),api.get('/api/evaluations/latest'),api.get('/api/scenarios'),api.get('/api/validation'),api.get('/api/insights')]);renderState(state);renderEvaluation(evaluation);renderScenarios(scenarios);renderValidation(validation);renderInsights(insights);const badge=document.getElementById('mode-badge');if(badge){badge.textContent=health.mode==='live'?'LIVE':'DEMO · EXAMPLE DATA';badge.classList.toggle('live',health.mode==='live');}if(health.mode==='demo')showToast('ThreadAware is running in demo mode until the server-side API key is configured.');}catch(err){console.error(err);const badge=document.getElementById('mode-badge');if(badge)badge.textContent='OFFLINE';showToast('ThreadAware API is offline.');}}
+async function hydrate(){try{const [health,state,evaluation,scenarios,validation,insights]=await Promise.all([api.get('/api/health'),api.get('/api/state'),api.get('/api/evaluations/latest'),api.get('/api/scenarios'),api.get('/api/validation'),api.get('/api/insights')]);renderState(state);renderEvaluation(evaluation);renderScenarios(scenarios);renderValidation(validation);renderInsights(insights);const badge=document.getElementById('mode-badge');if(badge){badge.textContent=health.chat_mode==='live'?'LIVE':'DEMO · LOCAL';badge.classList.toggle('live',health.chat_mode==='live');}}catch(err){console.error(err);const badge=document.getElementById('mode-badge');if(badge)badge.textContent='OFFLINE';showToast('ThreadAware API is offline.');}}
 
 hydrate();

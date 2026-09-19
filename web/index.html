@@ -40,45 +40,24 @@
           <span class="mode-badge" id="mode-badge">Checking mode…</span>
           <button class="icon-button" aria-label="Search">⌕</button>
           <button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼ ◔</button>
-          <button class="profile-button"><span class="avatar">S</span><span>Shahrukh</span><span>⌄</span></button>
+          <button class="profile-button"><span class="avatar">R</span><span>Researcher</span><span>⌄</span></button>
         </div>
       </header>
 
       <section class="view active" id="chat-view">
         <div class="chat-main">
           <div class="page-heading chat-heading">
-            <h1>Good afternoon, Shahrukh</h1>
-            <p>Ask, explore, and get clearer answers over time.</p>
+            <h1>Good afternoon</h1>
+            <p>Talk naturally. ThreadAware follows how needs and context evolve.</p>
           </div>
 
           <div class="conversation-feed" id="conversation-feed">
-            <article class="chat-row user-row">
-              <div class="message-avatar">S</div>
-              <div class="message-card">
-                <div class="message-meta"><b>You</b><span>10:24 AM</span></div>
-                <p>I'm planning a trip next month and I might bring my laptop.<br>Can you help me figure out what I need?</p>
-              </div>
-            </article>
-            <article class="chat-row assistant-row">
-              <div class="assistant-avatar"><span></span><span></span></div>
-              <div class="message-card assistant-card">
-                <div class="message-meta"><b>ThreadAware</b><span>10:24 AM</span></div>
-                <p>I'd be happy to help. To give you the most relevant advice, could you clarify a few things?</p>
-                <ol class="clarifying-list">
-                  <li>Where are you travelling to?</li>
-                  <li>What will you mainly use your laptop for?</li>
-                  <li>Are you concerned about packing, security, power, or something else?</li>
-                </ol>
-                <p>Once I have a bit more detail, I can give you a tailored list.</p>
-              </div>
-            </article>
-            <article class="chat-row user-row">
-              <div class="message-avatar">S</div>
-              <div class="message-card">
-                <div class="message-meta"><b>You</b><span>10:26 AM</span></div>
-                <p>I'm going to Japan for two weeks. I'll mostly use it for work, but also some personal stuff. I'm a bit worried about power adapters and keeping it safe.</p>
-              </div>
-            </article>
+            <div class="chat-empty" id="chat-empty">
+              <div class="empty-mark"><span></span><span></span></div>
+              <h2>Start a conversation</h2>
+              <p>ThreadAware notices evolving goals, changing constraints, ambiguity, sensitivity, and returning topics across longer conversations.</p>
+              <div class="capability-pills"><span>Continuity</span><span>Wellbeing-aware</span><span>Clarification</span><span>Adaptive memory</span></div>
+            </div>
           </div>
 
           <div class="composer-wrap">
@@ -89,7 +68,7 @@
               <button class="send-button" id="send-button" aria-label="Send">➤</button>
             </div>
             <div class="quick-actions">
-              <button>◇ Ask for clarification</button><button>▣ Summarize this</button><button>♢ Check consistency</button><button>⌘ Explore alternatives</button>
+              <button data-chat-action="clarify">◇ Ask for clarification</button><button data-chat-action="summarize">▣ Summarize this</button><button data-chat-action="consistency">♢ Check consistency</button><button data-chat-action="alternatives">⌘ Explore alternatives</button>
             </div>
           </div>
         </div>
@@ -98,21 +77,21 @@
           <section class="rail-card continuity-rail">
             <div class="rail-title"><span class="rail-icon mint">◇</span><b>Conversation Continuity</b><span class="sync">↝ In sync</span></div>
             <div class="mini-timeline">
-              <div class="mini-state mint-dot"><small>Current Topic</small><strong>Trip planning (Japan)</strong></div>
-              <div class="mini-state mint-dot"><small>User Goal</small><strong>Get a list of what to bring for a trip</strong></div>
-              <div class="mini-state purple-dot"><small>Key Preferences</small><strong>Work and personal use<br>Concerned about power adapters and safety</strong></div>
-              <div class="mini-state mint-dot"><small>Decisions Made</small><strong>Japan · Two weeks · Laptop for work & personal</strong></div>
-              <div class="mini-state orange-dot"><small>Open Questions</small><strong>None at the moment</strong></div>
+              <div class="mini-state mint-dot"><small>Current Topic</small><strong>Waiting for conversation</strong></div>
+              <div class="mini-state mint-dot"><small>User Goal</small><strong>Not identified yet</strong></div>
+              <div class="mini-state purple-dot"><small>Preferences &amp; Constraints</small><strong>None recorded yet</strong></div>
+              <div class="mini-state mint-dot"><small>Decisions Made</small><strong>None recorded yet</strong></div>
+              <div class="mini-state orange-dot"><small>Open Questions</small><strong>None yet</strong></div>
             </div>
           </section>
 
           <section class="rail-card evaluation-rail">
             <div class="rail-title"><span class="rail-icon blue">▥</span><b>Evaluation Summary</b><button class="text-button" data-jump="evaluations">View Details ›</button></div>
             <div class="evaluation-mini-grid">
-              <div><span class="eval-icon mint">✓</span><small>Helpful</small><b>High</b></div>
-              <div><span class="eval-icon blue">♙</span><small>Appropriate</small><b>High</b></div>
-              <div><span class="eval-icon orange">♢</span><small>Balanced</small><b>Good</b></div>
-              <div><span class="eval-icon purple">⌘</span><small>Continuity</small><b>Consistent</b></div>
+              <div><span class="eval-icon mint">✓</span><small>Helpful</small><b>Not run</b></div>
+              <div><span class="eval-icon blue">♙</span><small>Appropriate</small><b>Not run</b></div>
+              <div><span class="eval-icon orange">♢</span><small>Balanced</small><b>Not run</b></div>
+              <div><span class="eval-icon purple">⌘</span><small>Continuity</small><b>Not run</b></div>
             </div>
           </section>
 
@@ -132,31 +111,25 @@
         </div>
         <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Timeline</button><button class="tab">Context State</button><button class="tab">Decisions</button><button class="tab">Open Questions</button></div>
         <div class="summary-grid four-cols">
-          <article class="summary-card"><span class="summary-icon mint">▣</span><div><small>Topic</small><b>Trip planning (Japan)</b></div></article>
-          <article class="summary-card"><span class="summary-icon mint">⚑</span><div><small>User Goal</small><b>Get a list of what to bring</b></div></article>
-          <article class="summary-card"><span class="summary-icon purple">✿</span><div><small>Key Preferences</small><b>Work + personal use<br>Safety conscious</b></div></article>
-          <article class="summary-card"><span class="summary-icon mint">⊙</span><div><small>Status</small><b class="sync-text">● In sync</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">▣</span><div><small>Topic</small><b id="summary-topic">Waiting for conversation</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">⚑</span><div><small>User Goal</small><b id="summary-goal">Not identified yet</b></div></article>
+          <article class="summary-card"><span class="summary-icon purple">✿</span><div><small>Preferences &amp; Constraints</small><b id="summary-preferences">None recorded yet</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">⊙</span><div><small>Status</small><b class="sync-text" id="summary-status">Ready</b></div></article>
         </div>
         <div class="continuity-grid">
           <article class="panel timeline-panel">
             <h3>Conversation Timeline</h3>
-            <div class="conversation-timeline" id="continuity-timeline">
-              <div><span class="timeline-dot mint"></span><b>Turn 1 <small>10:24 AM</small></b><p>Initial request about trip and laptop.</p></div>
-              <div><span class="timeline-dot blue"></span><b>Turn 2 <small>10:24 AM</small></b><p>Assistant asked clarifying questions.</p></div>
-              <div><span class="timeline-dot blue"></span><b>Turn 3 <small>10:26 AM</small></b><p>User provided destination, duration, and main use cases.</p></div>
-              <div><span class="timeline-dot blue"></span><b>Turn 4 <small>10:27 AM</small></b><p>Assistant gave tailored recommendations.</p></div>
-              <div><span class="timeline-dot blue"></span><b>Turn 5 <small>10:28 AM</small></b><p>User asked follow-up about power adapters.</p></div>
-            </div>
+            <div class="conversation-timeline" id="continuity-timeline"><p class="empty-state">Conversation events will appear here as the dialogue develops.</p></div>
           </article>
           <article class="panel state-panel">
             <h3>Current Context State</h3>
             <div class="context-table" id="context-table">
-              <div><span class="state-icon blue">⌾</span><b>Destination</b><span>Japan</span></div>
-              <div><span class="state-icon blue">⌾</span><b>Duration</b><span>Two weeks</span></div>
-              <div><span class="state-icon mint">⬡</span><b>Primary Use</b><span>Work and personal</span></div>
-              <div><span class="state-icon blue">□</span><b>Concerns</b><span>Power adapters, safety</span></div>
-              <div><span class="state-icon purple">♧</span><b>Travel Style</b><span>City travel (Tokyo, Kyoto, Osaka)</span></div>
-              <div><span class="state-icon orange">◆</span><b>Unresolved Questions</b><span>None at the moment</span></div>
+              <div><span class="state-icon blue">◎</span><b>Active goals</b><span>None</span></div>
+              <div><span class="state-icon mint">⬡</span><b>Constraints</b><span>None</span></div>
+              <div><span class="state-icon purple">♧</span><b>Preferences</b><span>None</span></div>
+              <div><span class="state-icon blue">□</span><b>Decisions</b><span>None</span></div>
+              <div><span class="state-icon orange">◆</span><b>Unresolved questions</b><span>None</span></div>
+              <div><span class="state-icon mint">⊙</span><b>Sensitivity</b><span>Not assessed</span></div>
             </div>
           </article>
         </div>
@@ -166,28 +139,25 @@
         <div class="page-heading split-heading"><div><h1>Evaluations</h1><p>Assess AI responses for safety, helpfulness, and contextual consistency.</p></div><select class="context-select"><option>Current Conversation</option></select></div>
         <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Criteria</button><button class="tab">Results</button><button class="tab">Model Comparison</button><button class="tab">Export</button></div>
         <div class="score-grid">
-          <article class="score-card"><div class="score-label"><span class="summary-icon mint">✓</span><b>Helpful</b></div><strong class="mint-text">High</strong><em id="helpfulness-score">92/100</em><p>Provides useful and relevant information.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon blue">♢</span><b>Appropriate</b></div><strong class="blue-text">High</strong><em id="appropriateness-score">88/100</em><p>Aligns with user needs and safety guidelines.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Good</strong><em id="balanced-score">81/100</em><p>Avoids overcompliance and overrefusal.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Consistent</strong><em id="continuity-score">87/100</em><p>Uses and adapts to conversation context.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon mint">✓</span><b>Helpful</b></div><strong class="mint-text">Not run</strong><em id="helpfulness-score">—</em><p>Relevance and usefulness across the conversation.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon blue">♢</span><b>Appropriate</b></div><strong class="blue-text">Not run</strong><em id="appropriateness-score">—</em><p>Fit to user needs, sensitivity, and safety.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Not run</strong><em id="balanced-score">—</em><p>Neither harmful compliance nor needless refusal.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Not run</strong><em id="continuity-score">—</em><p>Adaptation to goals, constraints, and changes.</p></article>
         </div>
         <div class="evaluation-detail-grid">
-          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful Compliance (too compliant) <b id="harmful-rate">4%</b></label><div class="bar"><span class="mint-bar" style="width:4%"></span></div><label>Overrefusal (too cautious) <b id="overrefusal-rate">6%</b></label><div class="bar"><span class="blue-bar" style="width:6%"></span></div></article>
-          <article class="panel severity-panel"><h3>Severity Assessment</h3><strong class="mint-text" id="severity-level">Low</strong><p>No problematic content detected.</p><span class="shield-badge">♢</span></article>
-          <article class="panel notes-panel"><h3>Evaluation Notes</h3><ul><li>Clear and helpful responses</li><li>Asked for clarification</li><li>Adapted to new information</li><li>Maintained consistent context</li></ul></article>
+          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful compliance <b id="harmful-rate">—</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Overrefusal <b id="overrefusal-rate">—</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div></article>
+          <article class="panel severity-panel"><h3>Severity Awareness</h3><strong class="mint-text" id="severity-level">Awaiting run</strong><p>Run an evaluation to assess sensitivity calibration.</p><span class="shield-badge">♢</span></article>
+          <article class="panel notes-panel"><h3>What this measures</h3><ul><li>Adaptation when needs change</li><li>Appropriate clarification</li><li>Wellbeing and safety awareness</li><li>Long-horizon consistency</li></ul></article>
         </div>
       </section>
 
       <section class="view" id="scenarios-view">
         <div class="page-heading split-heading"><div><h1>Scenarios</h1><p>Create and run realistic, multi-turn conversations.</p></div><button class="run-button" id="run-scenario">Run Scenario</button></div>
         <div class="tabbar"><button class="tab active">Library</button><button class="tab">Create New</button><button class="tab">Templates</button><button class="tab">My Scenarios</button></div>
-        <div class="scenario-tools"><div class="filter-pills"><button class="active">All</button><button>Travel</button><button>Health</button><button>Work</button><button>Personal</button><button>Safety</button><button>Changing Circumstances</button></div><div class="search-field">⌕ <input placeholder="Search scenarios..." /></div></div>
+        <div class="scenario-tools"><div class="filter-pills"><button class="active">All</button><button>Wellbeing</button><button>Health</button><button>Continuity</button><button>Safety</button><button>Changing needs</button><button>Returning topics</button></div><div class="search-field">⌕ <input placeholder="Search scenarios..." /></div></div>
         <div class="scenario-list" id="scenario-list">
-          <article><span class="scenario-icon blue">✈</span><div><b>Trip Planning (Japan)</b><p>Plan a two-week trip with changing requirements and constraints.</p></div><span class="tag">Multi-turn</span><span class="tag">Changing context</span><span>12 turns</span><span class="severity medium">● Medium</span><b>›</b></article>
-          <article><span class="scenario-icon pink">♥</span><div><b>Health Advice (General)</b><p>User asks about symptoms with evolving details.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>15 turns</span><span class="severity high">● High</span><b>›</b></article>
-          <article><span class="scenario-icon purple">▣</span><div><b>Work Decisions</b><p>Evaluate career options with personal constraints.</p></div><span class="tag">Multi-turn</span><span class="tag">Trade-offs</span><span>10 turns</span><span class="severity medium">● Medium</span><b>›</b></article>
-          <article><span class="scenario-icon mint">♣</span><div><b>Stress and Wellbeing</b><p>User discusses stress with increasing vulnerability.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>14 turns</span><span class="severity high">● High</span><b>›</b></article>
-          <article><span class="scenario-icon cyan">▰</span><div><b>Product Advice</b><p>Compare options with changing budget and preferences.</p></div><span class="tag">Multi-turn</span><span class="tag">Evolving goals</span><span>8 turns</span><span class="severity low">● Low</span><b>›</b></article>
+          <article><span class="scenario-icon mint">♣</span><div><b>Wellbeing with changing priorities</b><p>Evaluate whether support adapts as needs and vulnerability evolve.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>14 turns</span><span class="severity medium">● Moderate</span><b>›</b></article>
+          <article><span class="scenario-icon pink">♥</span><div><b>Health context escalation</b><p>Evaluate calibrated support as new details change the level of concern.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Health</span><span>16 turns</span><span class="severity medium">● Moderate</span><b>›</b></article>
         </div>
       </section>
 
@@ -200,7 +170,7 @@
           <article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting evidence</strong><p>Demo data is explicitly separated from validated evidence.</p></div></article>
         </div>
         <div class="validation-detail-grid">
-          <article class="panel"><h3>Expert Domains</h3><div class="domain-pills"><span>Mental Health</span><span>Safety</span><span>Health Information</span><span>Education</span><span>Travel</span><span>Workplace</span><span>General Advice</span></div></article>
+          <article class="panel"><h3>Planned Review Domains</h3><div class="domain-pills"><span>Mental Health</span><span>General Health</span><span>Safety</span><span>Human Factors</span><span>Evaluation Science</span><span>Multilingual &amp; Cultural Context</span></div></article>
           <article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>—</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>—</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>—</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article>
           <article class="panel report-panel"><button class="outline-button">View Full Report</button></article>
         </div>

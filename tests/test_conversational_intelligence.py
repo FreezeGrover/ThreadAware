@@ -33,3 +33,12 @@ def test_project_guidance_requests_warm_nonrobotic_voice():
     assert "natural" in guidance.lower()
     assert "warm" in guidance.lower()
     assert "robotic" in guidance.lower()
+
+
+def test_demo_reply_is_warm_and_useful_without_claiming_live_generation():
+    layer = ConversationalIntelligence()
+    turns = [Turn(role="user", content="I've been overwhelmed and stressed lately.")]
+    reply = layer.demo_reply(turns)
+    assert "sorry" in reply.lower()
+    assert "one piece at a time" in reply.lower()
+    assert "api key" not in reply.lower()

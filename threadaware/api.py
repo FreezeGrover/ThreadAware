@@ -15,7 +15,6 @@ from threadaware.continuity.engine import ContinuityEngine
 from threadaware.conversation.intelligence import ConversationalIntelligence
 from threadaware.evaluations.batch import BatchRunner
 from threadaware.evaluations.runner import EvaluationRunner
-from threadaware.evaluations.scoring import aggregate_pass
 from threadaware.insights.analysis import InsightEngine
 from threadaware.memory.understanding import ConversationUnderstandingEngine
 from threadaware.paths import app_data_dir, database_path, exports_dir, settings_path
@@ -37,32 +36,12 @@ app.add_middleware(
 )
 
 engine = ContinuityEngine()
-engine.apply_update(kind="goal", value="Plan a two-week Japan trip")
-engine.apply_update(kind="goal", value="Keep the itinerary low-stress")
-engine.apply_update(kind="constraint", value="Three remote-work mornings")
-engine.apply_update(kind="preference", value="Tokyo")
-engine.apply_update(kind="preference", value="Kyoto")
-engine.apply_update(kind="preference", value="Slower pace")
-engine.apply_update(kind="question", value="Should the remote-work mornings be grouped or split?")
-engine.set_sensitivity("low")
 
 store = RunStore()
 insights = InsightEngine(store=store)
 batches = BatchRunner(store=store)
 understanding = ConversationUnderstandingEngine()
 conversation = ConversationalIntelligence()
-
-DEMO_EVALUATION = aggregate_pass(
-    helpfulness=0.91,
-    appropriateness=0.94,
-    balanced_behavior=0.93,
-    context_adaptation=0.89,
-    continuity=0.93,
-    severity_awareness=0.90,
-    harmful_compliance=False,
-    overrefusal=False,
-)
-
 
 class RunRequest(BaseModel):
     scenario_id: str
@@ -166,19 +145,20 @@ def latest_evaluation() -> dict:
     runs = store.list_runs(limit=1)
     if runs:
         payload = store.get(runs[0]["id"])
-        if payload:
+        if payload and payload.get("mode") == "live":
             evaluation = dict(payload["evaluation"])
             evaluation["mode"] = payload["mode"]
+            evaluation["available"] = True
             evaluation["harmful_compliance_rate"] = float(evaluation.get("harmful_compliance", False))
             evaluation["overrefusal_rate"] = float(evaluation.get("overrefusal", False))
             return evaluation
 
-    data = DEMO_EVALUATION.model_dump()
-    data["mode"] = "demo"
-    data["demo_only"] = True
-    data["harmful_compliance_rate"] = 0.021
-    data["overrefusal_rate"] = 0.048
-    return data
+    return {
+        "mode": "demo",
+        "demo_only": True,
+        "available": False,
+        "message": "Run a scenario to generate an explicitly labelled demonstration result.",
+    }
 
 
 @app.get("/api/evaluations/runs")
@@ -283,11 +263,7 @@ def chat(payload: ChatRequest) -> dict:
         if interpretation.interpretation.clarification_needed:
             reply = interpretation.interpretation.clarification_question
         else:
-            reply = (
-                "ThreadAware is running in demo mode, so I can demonstrate continuity, memory, "
-                "interpretation, and topic-shift behavior, but a live generative reply requires a "
-                "server-side OpenAI API key. You can still explore the scenarios and evaluation pages now."
-            )
+            reply = conversation.demo_reply(payload.messages, intent)
         return {
             "model": None,
             "mode": "demo",
@@ -333,6 +309,7 @@ def chat(payload: ChatRequest) -> dict:
         model=model,
         messages=[Turn(role="system", content="\n".join(system_parts)), *payload.messages],
         max_output_tokens=1200,
+        role="target",
     )
     return {
         "model": model,

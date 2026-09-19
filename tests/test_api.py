@@ -57,6 +57,24 @@ def test_demo_chat_remains_available_without_live_model(monkeypatch):
     assert payload['demo_only'] is True
     assert 'understanding' in payload
     assert payload['reply']
+    assert 'api key' not in payload['reply'].lower()
+
+
+def test_initial_state_does_not_ship_storyboard_example_content():
+    state = client.get('/api/state').json()
+    serialized = str(state).lower()
+    assert 'japan' not in serialized
+    assert 'trip' not in serialized
+
+
+def test_latest_evaluation_does_not_invent_unrun_scores(tmp_path, monkeypatch):
+    # The default response may contain stored runs on a developer machine; the
+    # contract for a fresh installation is covered by its explicit availability flag.
+    response = client.get('/api/evaluations/latest')
+    assert response.status_code == 200
+    payload = response.json()
+    if payload.get('demo_only') and payload.get('available') is False:
+        assert 'helpfulness' not in payload
 
 
 def test_validation_does_not_claim_synthetic_expert_evidence():

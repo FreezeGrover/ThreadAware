@@ -4,10 +4,19 @@
 .mode-badge{border:1px solid #f0dfca;background:#fff7ed;color:#a45d18;border-radius:999px;padding:6px 9px;font-size:8px;font-weight:700;letter-spacing:.08em}.mode-badge.live{border-color:#c8eee3;background:#effcf8;color:#128266}
 @media(max-width:1280px){body{min-width:1024px}:root{--sidebar-w:195px}.workspace{padding-left:18px;padding-right:18px}.composer-wrap{left:213px}.scenario-list article{grid-template-columns:40px 1fr auto auto auto 12px}.scenario-list article .tag:nth-of-type(2){display:none}}
 /* Storyboard-matched scenic artwork and responsive refinements. */
-.sidebar-art{background:linear-gradient(180deg,rgba(255,255,255,0) 0%,rgba(250,244,238,.08) 15%),url('threadaware-scenic.jpg') 66% bottom/auto 260px no-repeat;opacity:.88}
-.sidebar-art .mountain,.sidebar-art .ring-art{display:none}
-.scenic-card{background:linear-gradient(90deg,rgba(255,255,255,.88) 0%,rgba(255,255,255,.18) 55%),url('threadaware-scenic.jpg') 70% 62%/cover no-repeat}
+.sidebar::after{content:"";position:absolute;z-index:0;left:0;right:0;top:38%;bottom:0;pointer-events:none;background:url('threadaware-scenic.jpg') 90% bottom/auto 365px no-repeat;opacity:.88;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,rgba(0,0,0,.16) 8%,#000 31%,#000 100%);mask-image:linear-gradient(to bottom,transparent 0%,rgba(0,0,0,.16) 8%,#000 31%,#000 100%)}
+.sidebar-art{display:none}
+.scenic-card{background:linear-gradient(90deg,rgba(255,255,255,.94) 0%,rgba(255,255,255,.72) 36%,rgba(255,255,255,.08) 72%),url('threadaware-scenic.jpg') 90% 62%/cover no-repeat;background-blend-mode:normal;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
 .scenic-mountains,.scenic-ring{display:none}
+.conversation-feed{min-height:calc(100vh - 245px)}
+.chat-empty{align-self:center;justify-self:center;max-width:520px;text-align:center;padding:54px 32px 150px;color:#6f7d94}
+.chat-empty h2{margin:14px 0 7px;color:var(--ink);font-size:18px;letter-spacing:-.025em}
+.chat-empty p{margin:0 auto;max-width:470px;font-size:11px;line-height:1.65}
+.empty-mark{width:48px;height:38px;margin:0 auto;position:relative;opacity:.78}
+.empty-mark span{position:absolute;left:7px;top:10px;width:34px;height:14px;border:3px solid #b38e72;border-radius:50%;transform:rotate(34deg)}
+.empty-mark span:last-child{transform:rotate(-34deg);border-color:#8e98aa #d5bda8 #ad876c #8e98aa}
+.capability-pills{display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin-top:16px}
+.capability-pills span{padding:6px 9px;border:1px solid #e3e9f1;border-radius:999px;background:rgba(255,255,255,.82);color:#64738b;font-size:8px}
 @media(max-width:1280px){:root{--sidebar-w:220px}.composer-wrap{left:244px}}
 @media(max-width:900px){
   body{min-width:0;overflow-x:hidden}
@@ -17,7 +26,7 @@
   .brand-mark{width:42px;height:32px;margin:0}
   .brand-mark:before,.brand-mark:after{left:8px;top:7px;width:25px;height:11px;border-width:3px}
   .brand-name{font-size:17px}
-  .brand-tagline,.sidebar-art,.sidebar-quote{display:none}
+  .brand-tagline,.sidebar-art,.sidebar-quote,.sidebar::after{display:none}
   .nav-list{display:flex;gap:5px;margin-top:9px;overflow-x:auto;padding-bottom:2px}
   .nav-item{flex:0 0 auto;width:auto;padding:8px 11px;font-size:12px}
   .nav-icon{width:17px;font-size:15px}
@@ -30,7 +39,8 @@
   .page-heading h1,.chat-heading h1{font-size:20px}
   #chat-view.active{display:block}
   .chat-main{min-height:auto;padding-right:0}
-  .conversation-feed{padding-bottom:18px}
+  .conversation-feed{min-height:360px;padding-bottom:18px}
+  .chat-empty{padding:50px 18px}
   .chat-rail{margin-top:12px}
   .composer-wrap{position:sticky;left:auto;right:auto;bottom:0;padding:10px 0 4px;z-index:20}
   .quick-actions{overflow-x:auto;padding-bottom:4px}
