@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#fbfcff" />
   <title>ThreadAware</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="attention.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -53,10 +54,16 @@
 
           <div class="conversation-feed" id="conversation-feed">
             <div class="chat-empty" id="chat-empty">
+              <div class="hero-kicker"><i></i>Continuity is active</div>
               <div class="empty-mark"><span></span><span></span></div>
-              <h2>Start a conversation</h2>
-              <p>ThreadAware notices evolving goals, changing constraints, ambiguity, sensitivity, and returning topics across longer conversations.</p>
+              <h2>A conversation that remembers where it is going.</h2>
+              <p>ThreadAware notices evolving goals, changing constraints, ambiguity, sensitivity, and returning topics across longer conversations — then makes those changes visible.</p>
               <div class="capability-pills"><span>Continuity</span><span>Wellbeing-aware</span><span>Clarification</span><span>Adaptive memory</span></div>
+              <div class="hero-prompts" aria-label="Conversation starters">
+                <button class="hero-prompt" data-prompt="I want to talk something through. My priorities may change as we go."><b>Talk something through</b><span>See how ThreadAware follows changing goals.</span></button>
+                <button class="hero-prompt" data-prompt="Help me think through a wellbeing situation carefully, and ask if anything important is unclear."><b>Explore a wellbeing situation</b><span>Watch sensitivity and clarification adapt.</span></button>
+                <button class="hero-prompt" data-prompt="I want to revisit something from earlier and update what matters now."><b>Return to an earlier topic</b><span>Test memory updates and conversation continuity.</span></button>
+              </div>
             </div>
           </div>
 
@@ -204,5 +211,6 @@
 
   <div class="toast" id="toast" role="status"></div>
   <script src="app.js"></script>
+  <script src="attention.js"></script>
 </body>
 </html>
