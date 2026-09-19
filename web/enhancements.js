@@ -98,4 +98,63 @@
       setTimeout(() => toast.classList.remove('show'), 2600);
     });
   });
+
+  /* ThreadAware awareness stream: keep the entire visible history for this conversation. */
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const toneFor = (kind, importance) => {
+    if (importance === 'high' || kind === 'sensitivity') return 'orange';
+    if (['return','possible-interpretations','open-question'].includes(kind)) return 'purple';
+    if (['priority-change','goal-change','constraint'].includes(kind)) return 'blue';
+    return 'mint';
+  };
+
+  window.addAwarenessNote = function(title, text, tone='mint', meta='') {
+    window.prepareAwarenessRail?.();
+    const list = document.querySelector('.continuity-rail .mini-timeline');
+    if (!list) return;
+    list.querySelector('.awareness-empty')?.remove();
+    const item = document.createElement('div');
+    item.className = `awareness-note ${tone}`;
+    const stamp = new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date());
+    item.innerHTML = `<span class="awareness-dot"></span><div><small>${esc(title)}</small><strong>${esc(text)}</strong><em>${esc(meta || stamp)}</em></div>`;
+    list.appendChild(item);
+    item.scrollIntoView({behavior:'smooth',block:'nearest'});
+  };
+
+  window.applyUnderstanding = function(u) {
+    if (!u) return;
+    window.prepareAwarenessRail?.();
+    const topic = u.active_topic || u.topic_shift?.new_topic;
+    if (topic) {
+      const topicEl = document.getElementById('summary-topic');
+      if (topicEl) topicEl.textContent = topic;
+      const status = document.getElementById('summary-status');
+      if (status) status.textContent = '● Tracking';
+    }
+
+    const events = Array.isArray(u.noticing) ? u.noticing : [];
+    if (events.length) {
+      events.forEach(event => {
+        if (!event?.title || !event?.note) return;
+        window.addAwarenessNote(event.title, event.note, toneFor(event.kind, event.importance));
+      });
+    } else {
+      const shift = u.topic_shift;
+      if (shift?.shifted) {
+        const from = shift.previous_topic || 'the earlier thread';
+        const to = shift.new_topic || topic || 'a new direction';
+        if (shift.relation === 'returning') window.addAwarenessNote('Interesting — we came back to this', `We’re returning to ${to}. I kept the earlier thread with us.`, 'purple');
+        else window.addAwarenessNote('Hmm, we changed direction', `We moved from ${from} to ${to}. I’m keeping both threads in view.`, 'orange');
+      }
+    }
+
+    const timeline = document.getElementById('continuity-timeline');
+    if (timeline && events.length) {
+      timeline.querySelector('.empty-state')?.remove();
+      events.forEach(event => {
+        if (!event?.title || !event?.note) return;
+        timeline.insertAdjacentHTML('beforeend', `<div><span class="timeline-dot ${toneFor(event.kind,event.importance)}"></span><b>${esc(event.title)} <small>${new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date())}</small></b><p>${esc(event.note)}</p></div>`);
+      });
+    }
+  };
 })();
