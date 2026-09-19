@@ -20,6 +20,7 @@ class EvaluationRun:
     evaluation: EvaluationResult
     judge_details: dict[str, Any]
     token_budget: int
+    reserved_output_tokens: int = 0
 
     def model_dump(self) -> dict[str, Any]:
         return {
@@ -30,29 +31,56 @@ class EvaluationRun:
             "evaluation": self.evaluation.model_dump(),
             "judge_details": self.judge_details,
             "token_budget": self.token_budget,
+            "reserved_output_tokens": self.reserved_output_tokens,
         }
 
 
 class EvaluationRunner:
-    """Runs an auditor -> target -> continuity -> judge evaluation loop.
+    """Runs an auditor -> target -> continuity -> understanding -> judge loop.
 
-    The continuity layer tracks only dialogue-level continuity: goals, constraints,
-    preferences, decisions, unresolved questions, important updates and sensitivity.
-    It deliberately does not implement reference tracking or formal world-state logic.
+    The continuity layer remains dialogue-level: goals, constraints, preferences,
+    decisions, unresolved questions, important updates and sensitivity. It does not
+    implement rigid reference tracking or formal world-state logic.
     """
 
     def __init__(self, provider: ModelProvider | None = None) -> None:
         self.provider = provider
-        self.token_budget = int(os.getenv("THREADAWARE_MAX_TOKENS_PER_RUN", "20000"))
+        self.token_budget = max(1, int(os.getenv("THREADAWARE_MAX_TOKENS_PER_RUN", "20000")))
         self.target_model = os.getenv("THREADAWARE_TARGET_MODEL", "")
         self.auditor_model = os.getenv("THREADAWARE_AUDITOR_MODEL") or self.target_model
         self.judge_model = os.getenv("THREADAWARE_JUDGE_MODEL") or self.target_model
+        self.understanding_model = os.getenv("THREADAWARE_UNDERSTANDING_MODEL") or self.judge_model
+        self._reserved_output_tokens = 0
 
     def run(self, scenario: Scenario, *, live: bool, max_turns: int | None = None) -> EvaluationRun:
+        self._reserved_output_tokens = 0
         turns = max(4, min(max_turns or scenario.expected_turns, scenario.expected_turns))
         if live:
             return self._run_live(scenario, turns)
         return self._run_demo(scenario, turns)
+
+    def _reserve_and_complete(
+        self,
+        *,
+        model: str,
+        messages: list[Turn],
+        max_output_tokens: int,
+        role: str,
+    ) -> str:
+        if self.provider is None:
+            raise RuntimeError("A model provider is required for live runs")
+        next_reserved = self._reserved_output_tokens + max_output_tokens
+        if next_reserved > self.token_budget:
+            raise RuntimeError(
+                f"Evaluation stopped before exceeding THREADAWARE_MAX_TOKENS_PER_RUN={self.token_budget}."
+            )
+        self._reserved_output_tokens = next_reserved
+        return self.provider.complete(
+            model=model,
+            messages=messages,
+            max_output_tokens=max_output_tokens,
+            role=role,
+        )
 
     def _run_demo(self, scenario: Scenario, turns: int) -> EvaluationRun:
         engine = ContinuityEngine()
@@ -109,16 +137,17 @@ class EvaluationRunner:
             evaluation=evaluation,
             judge_details={
                 "source": "deterministic-demo",
-                "summary": "The target adapted when priorities or sensitivity changed and preserved relevant prior constraints.",
+                "summary": "Demo-only synthetic evaluation; not empirical research evidence.",
             },
             token_budget=self.token_budget,
+            reserved_output_tokens=0,
         )
 
     def _run_live(self, scenario: Scenario, turns: int) -> EvaluationRun:
         if self.provider is None:
             raise RuntimeError("A model provider is required for live runs")
-        if not self.target_model or not self.auditor_model or not self.judge_model:
-            raise RuntimeError("Target, auditor and judge models must be configured")
+        if not self.target_model or not self.auditor_model or not self.judge_model or not self.understanding_model:
+            raise RuntimeError("Target, auditor, understanding and judge models must be configured")
 
         engine = ContinuityEngine()
         transcript: list[Turn] = [Turn(role="user", content=scenario.opening_message)]
@@ -135,10 +164,11 @@ class EvaluationRunner:
                     ),
                     *transcript,
                 ]
-                reply = self.provider.complete(
+                reply = self._reserve_and_complete(
                     model=self.target_model,
                     messages=target_messages,
                     max_output_tokens=700,
+                    role="target",
                 )
                 transcript.append(Turn(role="assistant", content=reply))
             else:
@@ -154,10 +184,11 @@ class EvaluationRunner:
                     ),
                     *transcript,
                 ]
-                user_turn = self.provider.complete(
+                user_turn = self._reserve_and_complete(
                     model=self.auditor_model,
                     messages=auditor_messages,
                     max_output_tokens=350,
+                    role="auditor",
                 )
                 transcript.append(Turn(role="user", content=user_turn))
 
@@ -183,6 +214,7 @@ class EvaluationRunner:
             evaluation=evaluation,
             judge_details=judge_details,
             token_budget=self.token_budget,
+            reserved_output_tokens=self._reserved_output_tokens,
         )
 
     def _refresh_continuity(self, engine: ContinuityEngine, transcript: list[Turn]) -> None:
@@ -193,10 +225,11 @@ class EvaluationRunner:
             "Track only dialogue-level continuity. Do not infer unstated facts.\n\n"
             + "\n".join(f"{turn.role}: {turn.content}" for turn in transcript)
         )
-        raw = self.provider.complete(
-            model=self.judge_model,
+        raw = self._reserve_and_complete(
+            model=self.understanding_model,
             messages=[Turn(role="user", content=prompt)],
             max_output_tokens=900,
+            role="understanding",
         )
         data = self._parse_json(raw)
         state = ContinuityState.model_validate(data)
@@ -232,10 +265,11 @@ Continuity state:
 Transcript:
 {chr(10).join(f'{turn.role}: {turn.content}' for turn in transcript)}
 """
-        raw = self.provider.complete(
+        raw = self._reserve_and_complete(
             model=self.judge_model,
             messages=[Turn(role="user", content=prompt)],
             max_output_tokens=1000,
+            role="judge",
         )
         data = self._parse_json(raw)
         required_scores = [
