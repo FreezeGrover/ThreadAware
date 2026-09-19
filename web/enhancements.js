@@ -98,88 +98,27 @@
     });
   });
 
-  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const shown = new Set();
-  const toneFor = (kind, importance) => {
-    if (importance === 'high' || kind === 'sensitivity') return 'orange';
-    if (['return','possible-interpretations','open-question'].includes(kind)) return 'purple';
-    if (['priority-change','goal-change','constraint'].includes(kind)) return 'blue';
-    return 'mint';
-  };
-
-  function ensureAwarenessRail() {
-    const rail = document.querySelector('.continuity-rail');
-    if (!rail) return null;
-    const title = rail.querySelector('.rail-title b');
-    if (title) title.textContent = 'What I’m noticing';
-    const sync = rail.querySelector('.sync');
-    if (sync) sync.textContent = '↝ Following along';
-    const list = rail.querySelector('.mini-timeline');
-    if (list && !list.dataset.awarenessReady) {
-      list.dataset.awarenessReady = '1';
-      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>Meaningful changes, returns, priorities, and open threads will appear here as we talk.</span></div>';
-    }
-    return list;
-  }
-
-  function addNotice(event) {
-    if (!event?.title || !event?.note) return;
-    const key = `${event.kind || ''}|${event.title}|${event.note}`;
-    if (shown.has(key)) return;
-    shown.add(key);
-    const list = ensureAwarenessRail();
-    if (!list) return;
-    list.querySelector('.awareness-empty')?.remove();
-    const item = document.createElement('div');
-    item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
-    const stamp = new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date());
-    item.innerHTML = `<span class="awareness-dot"></span><div><small>${esc(event.title)}</small><strong>${esc(event.note)}</strong><em>${esc(stamp)}</em></div>`;
-    list.appendChild(item);
-    item.scrollIntoView({behavior:'smooth', block:'nearest'});
-  }
-
-  function renderNoticing(u) {
-    if (!u) return;
-    ensureAwarenessRail();
-    const topic = u.active_topic || u.topic_shift?.new_topic;
-    if (topic) {
-      const topicEl = document.getElementById('summary-topic');
-      if (topicEl) topicEl.textContent = topic;
-      const status = document.getElementById('summary-status');
-      if (status) status.textContent = '● Tracking';
-    }
-
-    const events = Array.isArray(u.noticing) ? u.noticing : [];
-    if (events.length) {
-      events.forEach(addNotice);
-    } else if (u.topic_shift?.shifted) {
-      const shift = u.topic_shift;
-      const from = shift.previous_topic || 'the earlier thread';
-      const to = shift.new_topic || topic || 'a new direction';
-      addNotice(shift.relation === 'returning'
-        ? {kind:'return', title:'Interesting — we came back to this', note:`We’re returning to ${to}. I kept the earlier thread with us.`}
-        : {kind:'topic-shift', title:'Hmm, we changed direction', note:`We moved from ${from} to ${to}. I’m keeping both threads in view.`});
-    }
-  }
-
-  window.applyUnderstanding = renderNoticing;
-  window.addAwarenessNote = (title, text, tone='mint') => addNotice({kind:tone,title,note:text});
-  ensureAwarenessRail();
-
-  /* The app's original chat function was defined before this file loads. Listen to
-     chat responses directly so the noticing panel cannot miss an understanding update. */
-  const nativeFetch = window.fetch.bind(window);
-  window.fetch = async (...args) => {
-    const response = await nativeFetch(...args);
-    try {
-      const input = args[0];
-      const url = typeof input === 'string' ? input : input?.url || '';
-      const method = String(args[1]?.method || 'GET').toUpperCase();
-      if (url.includes('/api/chat') && method === 'POST') {
-        const copy = response.clone();
-        copy.json().then(data => renderNoticing(data?.understanding)).catch(() => {});
-      }
-    } catch (_) {}
-    return response;
-  };
+  /* One quiet awareness stream. app.js is the only renderer; this file only styles it. */
+  const style = document.createElement('style');
+  style.id = 'threadaware-noticing-polish';
+  style.textContent = `
+    .continuity-rail{padding:18px 18px 16px!important;overflow:hidden!important}
+    .continuity-rail:after{display:none!important}
+    .continuity-rail .rail-title{display:flex!important;align-items:center!important;gap:10px!important;min-height:34px!important;margin:0!important}
+    .continuity-rail .rail-title b{font-size:14px!important;line-height:1.15!important;letter-spacing:-.015em!important;white-space:nowrap!important;color:#10213d!important}
+    .continuity-rail .rail-title .sync{display:none!important}
+    .continuity-rail .rail-icon{flex:0 0 auto!important}
+    .continuity-rail .memory-clear-button{margin-left:auto!important;flex:0 0 auto!important;padding:7px 11px!important;font-size:10px!important;border-radius:999px!important}
+    .continuity-rail .mini-timeline[data-awareness-ready="1"]{display:flex!important;flex-direction:column!important;gap:0!important;margin-top:12px!important;max-height:430px!important;overflow:auto!important;padding:0!important}
+    .continuity-rail .awareness-empty{border:0!important;background:transparent!important;box-shadow:none!important;padding:13px 4px 8px!important;display:block!important}
+    .continuity-rail .awareness-empty b{display:none!important}
+    .continuity-rail .awareness-empty span{font-size:12px!important;line-height:1.6!important;color:#8290a5!important}
+    .continuity-rail .awareness-note{display:grid!important;grid-template-columns:8px minmax(0,1fr)!important;gap:10px!important;padding:14px 4px!important;border:0!important;border-bottom:1px solid #edf1f5!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;animation:awarenessIn .2s ease-out!important}
+    .continuity-rail .awareness-note:last-child{border-bottom:0!important}
+    .continuity-rail .awareness-note .awareness-dot{width:6px!important;height:6px!important;margin-top:7px!important;box-shadow:none!important;opacity:.8!important}
+    .continuity-rail .awareness-note small{display:none!important}
+    .continuity-rail .awareness-note strong{font-size:13px!important;line-height:1.58!important;font-weight:560!important;letter-spacing:-.005em!important;color:#273750!important}
+    .continuity-rail .awareness-note em{display:none!important}
+  `;
+  document.head.appendChild(style);
 })();
