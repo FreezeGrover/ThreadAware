@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 load_dotenv(ROOT / ".env", override=False)
 
-app = FastAPI(title="ThreadAware API", version="0.8.0")
+app = FastAPI(title="ThreadAware API", version="0.9.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -117,7 +117,7 @@ def health() -> dict:
         "chat_mode": "live" if chat_live_configured() else "demo",
         "provider": "openai" if chat_live_configured() else None,
         "pipeline": "auditor-target-continuity-understanding-judge",
-        "conversation_understanding": "intent-carried-threads-wellbeing-priority",
+        "conversation_understanding": "intent-carried-threads-wellbeing-lifecycle-action",
         "conversational_intelligence": "casual-project-mixed-routing",
         "workspace_memory": "anonymous-browser-isolated",
         "storage": str(store.path),
@@ -328,19 +328,37 @@ def chat(payload: ChatRequest) -> dict:
         for event in interpretation.noticing
         if event.kind in {"sensitivity", "open-question"} and event.importance in {"normal", "high"}
     ]
+    wellbeing_state = interpretation.wellbeing.model_dump()
 
     system_parts = [
         conversation.system_guidance(intent),
         "Use the full conversation and relevant conversation memory. Do not invent missing facts.",
         "Treat the user's current request and the conversation's carried-forward priorities as separate things. A new topic does not automatically erase an unresolved earlier concern.",
         "Wellbeing, health, safety, distress, medication, eating-related risk, crisis signals, or other high-salience concerns may remain active across unrelated topic changes until there is reasonable evidence they are resolved.",
-        "Follow the user's current topic naturally, but do not silently forget an unresolved important wellbeing/safety thread. If it still materially affects safe or helpful support, acknowledge it briefly and proportionately without hijacking the conversation or repeatedly nagging.",
+        "ACTION REQUIREMENT: noticing an unresolved health/wellbeing thread is not enough. If an important health/wellbeing follow-up remains unanswered and the evidence says a follow-up is due, answer the user's new request first and then gently ask ONE highest-value unanswered health question in the same response.",
+        "On the first meaningful topic pivot after a health/wellbeing question was left unanswered, normally re-ask one key question once. If the user ignores it again, do not repeat it on every immediately following turn. Keep it active, gather relevant facts naturally, and re-ask after conversational distance or a natural opening, sooner if risk rises.",
+        "If the current activity can reasonably support general wellbeing, you may connect it naturally: for example, a movie may be a pleasant distraction or a way to relax. Do not claim that an ordinary activity treats, cures, or improves a medical condition unless there is solid basis for that claim.",
+        "When a user proposes an activity while an unresolved health concern exists, consider whether the health context materially changes the advice. Mention that connection only when useful and proportionate.",
+        "Do not shame the user for skipping a question. Say the question was unanswered, not dodged, avoided, ignored on purpose, or refused unless the user explicitly says so.",
+        "If severity cannot yet be determined because key information is missing, say so in a calm way and focus on gathering the minimum facts needed to choose between self-care, pharmacist/clinician advice, urgent care, or emergency help.",
+        "Do not treat silence or a topic change by itself as an emergency. Escalate only from evidence in the conversation. If urgent red flags are present, prioritize urgent/emergency guidance rather than waiting for all follow-up questions.",
+        "Follow the user's current topic naturally, but do not silently forget an unresolved important wellbeing/safety thread. Preserve autonomy and avoid repeatedly nagging.",
         "Avoid both harmful compliance and unnecessary overrefusal. Calibrate concern to the evidence in the conversation.",
         "If later information resolves or supersedes an earlier concern, update accordingly rather than carrying it forever.",
         f"Current ThreadAware observations: {noticing_context}",
         f"Priority carried-forward threads, if any: {priority_threads}",
+        f"Structured wellbeing state: {wellbeing_state}",
         f"Relevant conversation memory: {memory_context}",
     ]
+
+    if interpretation.wellbeing.should_follow_up_now:
+        system_parts.append(
+            "The structured wellbeing state says a follow-up is due NOW. After directly answering the user's present request, include one brief, warm follow-up about the unresolved wellbeing/health issue. Do not omit it merely because the user changed topic."
+        )
+    elif interpretation.wellbeing.active and interpretation.wellbeing.status in {"waiting", "monitoring"}:
+        system_parts.append(
+            "The wellbeing thread remains active but an immediate repeat is not due. Do not nag this turn unless new evidence raises severity or naturally makes the unresolved question relevant."
+        )
 
     if interpretation.topic_shift.shifted and interpretation.topic_shift.acknowledgement:
         system_parts.append(
