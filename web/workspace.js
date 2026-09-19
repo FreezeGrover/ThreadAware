@@ -85,8 +85,17 @@
       return;
     }
     list.innerHTML = '';
-    notices.forEach(appendNotice);
+    for (const event of notices) appendNotice(event);
     list.scrollTop = list.scrollHeight;
+  }
+
+  function collectVisibleMessages() {
+    return [...document.querySelectorAll('#conversation-feed .chat-row:not(.thinking-row)')]
+      .map(row => ({
+        role: row.classList.contains('user-row') ? 'user' : 'assistant',
+        content: row.dataset.rawContent || row.querySelector('.rich-message')?.innerText || row.querySelector('.message-card p')?.innerText || ''
+      }))
+      .filter(message => message.content);
   }
 
   function fallbackAppend(role, content) {
@@ -96,9 +105,7 @@
     const row = document.createElement('article');
     row.className = `chat-row ${role === 'user' ? 'user-row' : 'assistant-row'}`;
     row.dataset.rawContent = String(content ?? '');
-    const avatar = role === 'user'
-      ? '<div class="message-avatar">U</div>'
-      : '<div class="assistant-avatar"><span></span><span></span></div>';
+    const avatar = role === 'user' ? '<div class="message-avatar">U</div>' : '<div class="assistant-avatar"><span></span><span></span></div>';
     const safe = escapeHTML(content);
     row.innerHTML = `${avatar}<div class="message-card ${role === 'assistant' ? 'assistant-card' : ''}"><div class="message-meta"><b>${role === 'user' ? 'You' : 'ThreadAware'}</b></div><p>${safe.replace(/\n/g,'<br>')}</p></div>`;
     feed.appendChild(row);
@@ -125,14 +132,8 @@
     button.textContent = 'Fresh start';
     button.title = 'Clear this browser workspace’s conversation and ThreadAware memory';
     Object.assign(button.style, {
-      marginLeft: 'auto',
-      border: '1px solid rgba(25,42,70,.15)',
-      background: 'rgba(255,255,255,.82)',
-      borderRadius: '999px',
-      padding: '6px 10px',
-      fontSize: '11px',
-      fontWeight: '700',
-      cursor: 'pointer'
+      marginLeft: 'auto', border: '1px solid rgba(25,42,70,.15)', background: 'rgba(255,255,255,.82)',
+      borderRadius: '999px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer'
     });
 
     button.addEventListener('click', async () => {
@@ -141,9 +142,7 @@
       const oldId = workspaceId;
       try {
         await fetch('/api/memory/clear', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({workspace_id: oldId})
+          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({workspace_id: oldId})
         });
       } catch (_) {}
       localStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
@@ -152,31 +151,13 @@
       localStorage.setItem(WORKSPACE_KEY, workspaceId);
       window.location.reload();
     });
-
     title.appendChild(button);
   }
 
   /* Anonymous browser workspace isolation.
-     No name is requested. Each browser receives its own random workspace so the user's
-     conversation memory cannot be confused with a judge's or another visitor's memory. */
+     No name is requested. Each browser gets a random workspace ID so one person's
+     conversation memory cannot be mixed with another person's. */
   const previousFetch = window.fetch.bind(window);
-
-  async function recoverNaturalNoticing(messages) {
-    if (!Array.isArray(messages) || !messages.length) return [];
-    try {
-      const response = await previousFetch('/api/understanding', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({messages, workspace_id: workspaceId})
-      });
-      if (!response.ok) return [];
-      const understanding = await response.json();
-      return Array.isArray(understanding?.noticing) ? understanding.noticing : [];
-    } catch (_) {
-      return [];
-    }
-  }
-
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     const method = String(init?.method || 'GET').toUpperCase();
@@ -193,32 +174,75 @@
     }
 
     const response = await previousFetch(input, requestInit);
-
-    if (url.includes('/api/chat') && method === 'POST') {
+    if (url.includes('/api/chat') && method === 'POST' && outgoingMessages) {
       try {
         const copy = response.clone();
         const data = await copy.json();
-        if (outgoingMessages && data?.reply) {
-          saveTranscript([...outgoingMessages, {role: 'assistant', content: data.reply}]);
-        }
-
-        let events = Array.isArray(data?.understanding?.noticing) ? data.understanding.noticing : [];
-        if (!events.length) {
-          events = await recoverNaturalNoticing(outgoingMessages);
-        }
-
-        if (events.length) {
-          saveNotices(events);
-          events.forEach(appendNotice);
-        }
+        if (data?.reply) saveTranscript([...outgoingMessages, {role:'assistant', content:data.reply}]);
       } catch (_) {}
     }
-
     return response;
   };
+
+  /* IMPORTANT: noticing is driven from completed turns in the visible conversation,
+     not from canned browser logic and not from the old app.js renderer.
+
+     PRODUCT-BEHAVIOR EXAMPLES ONLY — NEVER PREDETERMINED RESPONSES:
+     the understanding model may notice the spirit of things like a topic changing,
+     the user leaving a question unanswered, circling back to an old thread, becoming
+     curious about where the user is going, or another unexpected turn in direction.
+     In casual moments it may be playful or lightly funny; in sensitive moments it
+     should be calm. These examples describe behavior only. The actual wording must
+     always be freshly generated from the real conversation. */
+  let lastProcessedAssistantCount = 0;
+  let noticeBusy = false;
+
+  async function generateNoticeForVisibleConversation() {
+    if (noticeBusy) return;
+    const messages = collectVisibleMessages();
+    if (!messages.length || messages[messages.length - 1]?.role !== 'assistant') return;
+
+    const assistantCount = messages.filter(m => m.role === 'assistant').length;
+    if (assistantCount <= lastProcessedAssistantCount) return;
+
+    noticeBusy = true;
+    try {
+      const response = await previousFetch('/api/understanding', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({messages, workspace_id: workspaceId})
+      });
+      if (!response.ok) return;
+      const understanding = await response.json();
+      const events = Array.isArray(understanding?.noticing) ? understanding.noticing : [];
+      if (events.length) {
+        saveNotices(events);
+        for (const event of events) appendNotice(event);
+        lastProcessedAssistantCount = assistantCount;
+      }
+    } catch (_) {
+      // No canned fallback: if understanding fails, leave the panel untouched.
+    } finally {
+      noticeBusy = false;
+    }
+  }
+
+  function installConversationObserver() {
+    const feed = document.getElementById('conversation-feed');
+    if (!feed) return;
+    const restored = collectVisibleMessages();
+    lastProcessedAssistantCount = restored.filter(m => m.role === 'assistant').length;
+
+    const observer = new MutationObserver(() => {
+      clearTimeout(installConversationObserver.timer);
+      installConversationObserver.timer = setTimeout(generateNoticeForVisibleConversation, 120);
+    });
+    observer.observe(feed, {childList:true, subtree:false});
+  }
 
   setTimeout(() => {
     installFreshStart();
     restoreWorkspace();
+    installConversationObserver();
   }, 0);
 })();
