@@ -3,6 +3,10 @@ const views=[...document.querySelectorAll('.view')];
 const toast=document.getElementById('toast');
 let activeScenarioId=null;
 
+const WORKSPACE_KEY='threadaware.workspace.id';
+function makeWorkspaceId(){return window.crypto?.randomUUID?window.crypto.randomUUID():`ws-${Date.now()}-${Math.random().toString(36).slice(2)}`;}
+function currentWorkspaceId(){let id=localStorage.getItem(WORKSPACE_KEY);if(!id){id=makeWorkspaceId();localStorage.setItem(WORKSPACE_KEY,id);}return id;}
+
 const api={
   async get(path){const r=await fetch(path);if(!r.ok)throw new Error(await r.text());return r.json();},
   async post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok){const d=await r.json().catch(()=>({detail:'Request failed'}));throw new Error(d.detail||'Request failed');}return r.json();}
@@ -23,17 +27,17 @@ function prepareAwarenessRail(){
   const title=rail.querySelector('.rail-title b');if(title)title.textContent="What I’m noticing";
   const sync=rail.querySelector('.sync');if(sync)sync.textContent='↝ Following along';
   const list=rail.querySelector('.mini-timeline');
-  if(list&&!list.dataset.awarenessReady){list.dataset.awarenessReady='1';list.innerHTML='<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As the conversation moves, I’ll quietly notice meaningful changes, returns, priorities, and details worth carrying forward.</span></div>';}
+  if(list&&!list.dataset.awarenessReady){list.dataset.awarenessReady='1';list.innerHTML='<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As the conversation moves, I’ll quietly notice what changes and what stays important.</span></div>';}
 }
 
+function noticeTone(kind,importance){if(importance==='high'||kind==='sensitivity')return'orange';if(['return','possible-interpretations','open-question'].includes(kind))return'purple';if(['priority-change','goal-change','constraint'].includes(kind))return'blue';return'mint';}
 function addAwarenessNote(title,text,tone='mint'){
   prepareAwarenessRail();
-  const list=document.querySelector('.continuity-rail .mini-timeline');if(!list)return;
+  const list=document.querySelector('.continuity-rail .mini-timeline');if(!list||!title||!text)return;
   list.querySelector('.awareness-empty')?.remove();
   const item=document.createElement('div');item.className=`awareness-note ${tone}`;
   item.innerHTML=`<span class="awareness-dot"></span><div><small>${escapeHTML(title)}</small><strong>${escapeHTML(text)}</strong></div>`;
   list.appendChild(item);
-  while(list.querySelectorAll('.awareness-note').length>7)list.querySelector('.awareness-note')?.remove();
   item.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
@@ -74,36 +78,28 @@ function appendMessage(role,content){const feed=document.getElementById('convers
   const avatar=role==='user'?'<div class="message-avatar">U</div>':'<div class="assistant-avatar"><span></span><span></span></div>';
   row.innerHTML=`${avatar}<div class="message-card ${role==='assistant'?'assistant-card':''}"><div class="message-meta"><b>${role==='user'?'You':'ThreadAware'}</b><span>${timeNow()}</span></div><p>${escapeHTML(content).replace(/\n/g,'<br>')}</p></div>`;feed.appendChild(row);feed.scrollTo({top:feed.scrollHeight,behavior:'smooth'});}
 
-function showThinking(){
-  const feed=document.getElementById('conversation-feed');if(!feed)return;
-  removeThinking();
-  const row=document.createElement('article');row.id='threadaware-thinking';row.className='chat-row assistant-row thinking-row';
-  row.innerHTML='<div class="assistant-avatar"><span></span><span></span></div><div class="message-card assistant-card thinking-card"><div class="message-meta"><b>ThreadAware</b><span>thinking</span></div><div class="thinking-line"><span>Thinking</span><i></i><i></i><i></i></div></div>';
-  feed.appendChild(row);feed.scrollTo({top:feed.scrollHeight,behavior:'smooth'});
-}
+function showThinking(){const feed=document.getElementById('conversation-feed');if(!feed)return;removeThinking();const row=document.createElement('article');row.id='threadaware-thinking';row.className='chat-row assistant-row thinking-row';row.innerHTML='<div class="assistant-avatar"><span></span><span></span></div><div class="message-card assistant-card thinking-card"><div class="message-meta"><b>ThreadAware</b><span>thinking</span></div><div class="thinking-line"><span>Thinking</span><i></i><i></i><i></i></div></div>';feed.appendChild(row);feed.scrollTo({top:feed.scrollHeight,behavior:'smooth'});}
 function removeThinking(){document.getElementById('threadaware-thinking')?.remove();}
-
 function collectMessages(){return [...document.querySelectorAll('#conversation-feed .chat-row:not(.thinking-row)')].map(row=>({role:row.classList.contains('user-row')?'user':'assistant',content:row.dataset.rawContent||row.querySelector('.rich-message')?.innerText||row.querySelector('.message-card p')?.innerText||''})).filter(m=>m.content);}
 
-async function sendChat(){const input=document.getElementById('chat-input');const button=document.getElementById('send-button');const text=input?.value.trim();if(!text||!button)return;appendMessage('user',text);input.value='';button.disabled=true;button.textContent='…';showThinking();try{const result=await api.post('/api/chat',{messages:collectMessages()});removeThinking();appendMessage('assistant',result.reply);if(result.understanding)applyUnderstanding(result.understanding);if(result.clarification_needed)showToast('ThreadAware found more than one possible reading and asked before assuming.');}catch(err){removeThinking();appendMessage('assistant',`I hit a connection problem just now: ${err.message}`);}finally{button.disabled=false;button.textContent='➤';}}
+async function sendChat(){const input=document.getElementById('chat-input');const button=document.getElementById('send-button');const text=input?.value.trim();if(!text||!button)return;appendMessage('user',text);input.value='';button.disabled=true;button.textContent='…';showThinking();try{const result=await api.post('/api/chat',{messages:collectMessages(),workspace_id:currentWorkspaceId()});removeThinking();appendMessage('assistant',result.reply);if(result.understanding)applyUnderstanding(result.understanding);if(result.clarification_needed)showToast('ThreadAware found more than one possible reading and asked before assuming.');}catch(err){removeThinking();appendMessage('assistant',`I hit a connection problem just now: ${err.message}`);}finally{button.disabled=false;button.textContent='➤';}}
 
 document.getElementById('send-button')?.addEventListener('click',sendChat);document.getElementById('chat-input')?.addEventListener('keydown',e=>{if(e.key==='Enter')sendChat();});
 const actionPrompts={clarify:'Before answering, check whether there is more than one reasonable interpretation. Ask one concise clarification only if choosing between them would materially change the answer.',summarize:'Please summarize the conversation so far, including my current goal, constraints, changes, and any unresolved questions.',consistency:'Please check whether the conversation and your latest response remain consistent with what I have told you.',alternatives:'Please identify the materially plausible interpretations without inventing details.'};
 document.querySelectorAll('[data-chat-action]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById('chat-input');if(!input)return;if(!collectMessages().length){showToast('Start a conversation first.');input.focus();return;}input.value=actionPrompts[button.dataset.chatAction]||'';sendChat();}));
 
-function applyUnderstanding(u){if(!u)return;prepareAwarenessRail();const mem=u.memory_updates||u.memory||u.memory_state||[];const shift=u.topic_shift;const interp=u.interpretation;const readings=interp?.interpretations||interp?.plausible_interpretations||[];const topic=u.active_topic||shift?.new_topic;
+/* The main chat renderer is the single authoritative noticing path.
+   The backend generates the wording from the actual conversation. Nothing here contains
+   canned noticing responses or hidden chain-of-thought. We only display the concise,
+   user-safe observations returned in understanding.noticing. */
+function applyUnderstanding(u){if(!u)return;prepareAwarenessRail();const shift=u.topic_shift;const interp=u.interpretation;const readings=interp?.interpretations||interp?.plausible_interpretations||[];const topic=u.active_topic||shift?.new_topic;const notices=Array.isArray(u.noticing)?u.noticing:[];
   if(topic){const topicEl=document.getElementById('summary-topic');if(topicEl)topicEl.textContent=topic;const status=document.getElementById('summary-status');if(status)status.textContent='● Tracking';}
-  if(shift?.shifted){
-    const from=shift.previous_topic||'the earlier thread';const to=shift.new_topic||topic||'a new direction';
-    if(shift.relation==='returning')addAwarenessNote('Back to an earlier thread',`We’re circling back to ${to}. I kept the earlier context.`, 'purple');
-    else if(shift.relation==='related')addAwarenessNote('The focus moved a little',`We shifted from ${from} toward ${to}, but the two threads still connect.`, 'mint');
-    else addAwarenessNote('A little detour',`We moved from ${from} to ${to}. I’m keeping the earlier thread in mind.`, 'orange');
-  }
-  if(readings.length>1)addAwarenessNote('More than one possible reading',`I can see ${readings.length} reasonable ways to read this. I’ll ask before choosing if the difference matters.`, 'purple');
-  if(mem.length){const latest=mem[mem.length-1]||{};const summary=latest.summary||latest.detail;if(summary)addAwarenessNote('Worth keeping in mind',String(summary).slice(0,180),'mint');}
+  notices.forEach(event=>addAwarenessNote(event.title,event.note,noticeTone(event.kind,event.importance)));
 
   const timeline=document.getElementById('continuity-timeline');if(timeline&&(shift||interp)){timeline.querySelector('.empty-state')?.remove();const blocks=[];if(readings.length>1)blocks.push(`<div><span class="timeline-dot purple"></span><b>Possible interpretations <small>${timeNow()}</small></b><p>${escapeHTML(readings.length)} plausible readings retained.</p></div>`);if(shift?.shifted)blocks.push(`<div><span class="timeline-dot orange"></span><b>${shift.relation==='returning'?'Earlier topic revisited':'Conversation direction changed'} <small>${timeNow()}</small></b><p>${escapeHTML(shift.acknowledgement||'The focus of the conversation changed.')}</p></div>`);if(!blocks.length&&topic)blocks.push(`<div><span class="timeline-dot mint"></span><b>Context updated <small>${timeNow()}</small></b><p>Active topic: ${escapeHTML(topic)}</p></div>`);timeline.insertAdjacentHTML('beforeend',blocks.join(''));}
 }
+window.applyUnderstanding=applyUnderstanding;
+window.addAwarenessNote=addAwarenessNote;
 
 async function runScenario(){const button=document.getElementById('run-scenario');if(!button)return;button.disabled=true;const old=button.textContent;button.textContent='Running…';try{const health=await api.get('/api/health');const scenarios=await api.get('/api/scenarios');const scenario=scenarios.find(s=>s.id===activeScenarioId)||scenarios[0];if(!scenario)throw new Error('No scenarios are configured.');activeScenarioId=scenario.id;const result=await api.post('/api/evaluations/run',{scenario_id:scenario.id,live:health.mode==='live',max_turns:scenario.expected_turns||10});renderEvaluation(result.evaluation);renderState(result.continuity);if(result.transcript){const feed=document.getElementById('conversation-feed');if(feed){feed.innerHTML='';result.transcript.forEach(t=>appendMessage(t.role,t.content));}}showToast(`${result.mode==='live'?'Live':'Demo'} evaluation completed.`);switchView('evaluations');}catch(err){showToast(`Evaluation failed: ${err.message}`);}finally{button.disabled=false;button.textContent=old;}}
 document.getElementById('run-scenario')?.addEventListener('click',runScenario);
@@ -111,7 +107,6 @@ document.getElementById('run-scenario')?.addEventListener('click',runScenario);
 function renderScenarios(scenarios){const list=document.getElementById('scenario-list');if(!list||!Array.isArray(scenarios)||!scenarios.length)return;list.innerHTML=scenarios.map((s)=>{const category=String(s.category||'').toLowerCase();const [c,icon]=category.includes('health')?['pink','♥']:category.includes('wellbeing')?['mint','♣']:category.includes('safety')?['orange','♢']:['cyan','◇'];const sev=String(s.severity||'low').toLowerCase();return `<article data-scenario-id="${escapeHTML(s.id)}"><span class="scenario-icon ${c}">${icon}</span><div><b>${escapeHTML(s.title||s.id)}</b><p>${escapeHTML(s.objective||s.description||'Multi-turn conversational evaluation scenario.')}</p></div><span class="tag">Multi-turn</span><span class="tag">${escapeHTML(s.category||'General')}</span><span>${escapeHTML(s.expected_turns||'—')} turns</span><span class="severity ${sev}">● ${escapeHTML(s.severity||'Low')}</span><b>›</b></article>`}).join('');list.querySelectorAll('article').forEach(a=>a.addEventListener('click',()=>{activeScenarioId=a.dataset.scenarioId;list.querySelectorAll('article').forEach(x=>x.style.outline='');a.style.outline='2px solid #8dbcf7';showToast('Scenario selected.');}));}
 
 function renderValidation(v){if(!v)return;const real=Boolean(v.has_real_expert_evidence||v.source==='expert-reviewed');const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};if(real){set('expert-count',String(v.expert_reviewed_scenarios??'—'));set('grader-agreement',v.grader_expert_agreement!=null?`${Math.round(v.grader_expert_agreement*100)}%`:'—');set('validation-status','Validated');}else{set('expert-count','Workflow ready');set('grader-agreement','Awaiting evidence');set('validation-status','Awaiting expert evidence');}}
-
 function renderInsights(i){if(!i)return;const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value;};set('insight-runs',String(i.total_runs??i.total_conversations??0));if(i.average_turns!=null)set('avg-turns',`${Number(i.average_turns).toFixed(1)} turns`);if(i.consistency!=null)set('consistency',`${Math.round(i.consistency*100)}%`);if(i.risk_rate!=null)set('risk-rate',`${Math.round(i.risk_rate*100)}%`);const strengths=document.getElementById('strength-list');if(strengths&&Array.isArray(i.strengths)&&i.strengths.length)strengths.innerHTML=i.strengths.map(x=>`<li>${escapeHTML(typeof x==='string'?x:x.text||x.finding||'')}</li>`).join('');const improvements=document.getElementById('improvement-list');if(improvements&&Array.isArray(i.improvements)&&i.improvements.length)improvements.innerHTML=i.improvements.map(x=>`<li>${escapeHTML(typeof x==='string'?x:x.text||x.finding||'')}</li>`).join('');}
 
 async function hydrate(){prepareAwarenessRail();try{const [health,state,evaluation,scenarios,validation,insights]=await Promise.all([api.get('/api/health'),api.get('/api/state'),api.get('/api/evaluations/latest'),api.get('/api/scenarios'),api.get('/api/validation'),api.get('/api/insights')]);renderState(state);renderEvaluation(evaluation);renderScenarios(scenarios);renderValidation(validation);renderInsights(insights);const badge=document.getElementById('mode-badge');if(badge){badge.textContent=health.chat_mode==='live'?'LIVE':'DEMO · LOCAL';badge.classList.toggle('live',health.chat_mode==='live');}}catch(err){console.error(err);const badge=document.getElementById('mode-badge');if(badge)badge.textContent='OFFLINE';showToast('ThreadAware API is offline.');}}
