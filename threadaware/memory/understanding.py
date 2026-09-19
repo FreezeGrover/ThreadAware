@@ -187,7 +187,8 @@ Return JSON only with this shape:
 }}
 
 Rules:
-- At least one noticing item every turn.
+- At least one noticing item every turn. An unchanged topic is still something to notice naturally.
+- A greeting/check-in should still receive a light, human observation instead of producing an empty noticing list.
 - Add more than one only when multiple meaningful things happened.
 - If an earlier assistant question remains unanswered, preserve it as an open-question observation when still relevant.
 - If the latest turn answers it, stop describing it as unanswered.
@@ -212,6 +213,17 @@ Full visible transcript:
         )
         data = self._parse_json(raw)
 
+        # Do not rely on prompt-following alone. Some live models correctly analyze the
+        # conversation yet omit noticing on ordinary turns. If that happens, run a small
+        # noticing-only generation pass. This is still model-generated from the actual
+        # conversation: there are no canned fallback sentences or rotating templates.
+        if not data.get("noticing"):
+            data["noticing"] = self._generate_live_noticing(
+                transcript=transcript,
+                analysis=data,
+                memories=memories,
+            )
+
         updated_items = []
         for update in data.get("memory_updates", []):
             item = self.memory.upsert(
@@ -224,6 +236,62 @@ Full visible transcript:
         data["memory_updates"] = updated_items
         self.active_topic = data.get("active_topic") or self.active_topic
         return ConversationUnderstanding.model_validate(data)
+
+    def _generate_live_noticing(
+        self,
+        *,
+        transcript: str,
+        analysis: dict[str, Any],
+        memories: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Generate at least one fresh, user-safe noticing event when the main pass omitted it."""
+        prompt = f"""You are ThreadAware's noticing layer.
+
+The main conversation analysis was valid but returned no noticing items. Generate the missing awareness trace now.
+
+You MUST return at least one noticing event for the latest user turn, even if it is only a greeting, check-in, joke, continuation, or ordinary conversational move. Do not require a topic change before noticing something.
+
+The observation should feel natural and human: quietly observant, curious where appropriate, lightly playful only when the context supports it, and calm for sensitive material. Do not invent motives or feelings. Do not expose hidden chain-of-thought. Do not use canned wording or reusable templates. Write specifically for this conversation.
+
+Return JSON only:
+{{
+  "noticing": [{{
+    "kind": "topic-shift"|"return"|"goal-change"|"priority-change"|"constraint"|"sensitivity"|"open-question"|"possible-interpretations"|"memory-update"|"connection"|"other",
+    "title": string,
+    "note": string,
+    "importance": "quiet"|"normal"|"high"
+  }}]
+}}
+
+Existing analysis:
+{json.dumps(analysis, indent=2)}
+
+Existing ThreadAware memory:
+{json.dumps(memories, indent=2)}
+
+Full visible transcript:
+{transcript}
+"""
+
+        # Retry once if the first noticing-only response still fails to provide an event.
+        # Both attempts remain generative and conversation-specific; nothing is hard-coded.
+        for _ in range(2):
+            raw = self.provider.complete(
+                model=self.model,
+                messages=[Turn(role="user", content=prompt)],
+                max_output_tokens=500,
+            )
+            try:
+                payload = self._parse_json(raw)
+            except (ValueError, json.JSONDecodeError):
+                continue
+            events = payload.get("noticing")
+            if isinstance(events, list) and any(
+                isinstance(event, dict) and event.get("title") and event.get("note")
+                for event in events
+            ):
+                return events
+        return []
 
     @staticmethod
     def _coarse_topic(text: str) -> str:
