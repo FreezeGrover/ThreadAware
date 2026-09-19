@@ -50,30 +50,42 @@
     return 'mint';
   }
 
-  function rebuildNoticingPanel() {
+  function awarenessElements() {
     const rail = document.querySelector('.continuity-rail');
     const list = rail?.querySelector('.mini-timeline');
-    if (!rail || !list) return;
-
+    if (!rail || !list) return null;
     const title = rail.querySelector('.rail-title b');
     if (title) title.textContent = 'What I’m noticing';
     const sync = rail.querySelector('.sync');
     if (sync) sync.textContent = '↝ Following along';
-
     list.dataset.awarenessReady = '1';
+    return {rail, list};
+  }
+
+  function appendNotice(event) {
+    if (!event?.title || !event?.note) return;
+    const parts = awarenessElements();
+    if (!parts) return;
+    const {list} = parts;
+    list.querySelector('.awareness-empty')?.remove();
+    const item = document.createElement('div');
+    item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
+    item.innerHTML = `<span class="awareness-dot"></span><div><small>${escapeHTML(event.title)}</small><strong>${escapeHTML(event.note)}</strong></div>`;
+    list.appendChild(item);
+    list.scrollTop = list.scrollHeight;
+  }
+
+  function rebuildNoticingPanel() {
+    const parts = awarenessElements();
+    if (!parts) return;
+    const {list} = parts;
     const notices = readJSON(noticesKey(), []);
     if (!notices.length) {
-      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As we talk, I’ll show what I notice about changes, returns, priorities, open threads, and important context.</span></div>';
+      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As we talk, naturally generated observations about the conversation will appear here.</span></div>';
       return;
     }
-
     list.innerHTML = '';
-    notices.forEach(event => {
-      const item = document.createElement('div');
-      item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
-      item.innerHTML = `<span class="awareness-dot"></span><div><small>${escapeHTML(event.title)}</small><strong>${escapeHTML(event.note)}</strong></div>`;
-      list.appendChild(item);
-    });
+    notices.forEach(appendNotice);
     list.scrollTop = list.scrollHeight;
   }
 
@@ -133,9 +145,7 @@
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({workspace_id: oldId})
         });
-      } catch (_) {
-        // Local browser state is still cleared even if the server cannot be reached.
-      }
+      } catch (_) {}
       localStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
       localStorage.removeItem(`${NOTICE_PREFIX}${oldId}`);
       workspaceId = newId();
@@ -147,10 +157,26 @@
   }
 
   /* Anonymous browser workspace isolation.
-     No name is requested from the user. A browser-local random ID is safer and avoids
-     collisions between judges. The same browser resumes its own thread; another browser
-     receives a different workspace automatically. */
+     No name is requested. Each browser receives its own random workspace so the user's
+     conversation memory cannot be confused with a judge's or another visitor's memory. */
   const previousFetch = window.fetch.bind(window);
+
+  async function recoverNaturalNoticing(messages) {
+    if (!Array.isArray(messages) || !messages.length) return [];
+    try {
+      const response = await previousFetch('/api/understanding', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({messages, workspace_id: workspaceId})
+      });
+      if (!response.ok) return [];
+      const understanding = await response.json();
+      return Array.isArray(understanding?.noticing) ? understanding.noticing : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     const method = String(init?.method || 'GET').toUpperCase();
@@ -175,8 +201,16 @@
         if (outgoingMessages && data?.reply) {
           saveTranscript([...outgoingMessages, {role: 'assistant', content: data.reply}]);
         }
-        saveNotices(data?.understanding?.noticing || []);
-        setTimeout(rebuildNoticingPanel, 80);
+
+        let events = Array.isArray(data?.understanding?.noticing) ? data.understanding.noticing : [];
+        if (!events.length) {
+          events = await recoverNaturalNoticing(outgoingMessages);
+        }
+
+        if (events.length) {
+          saveNotices(events);
+          events.forEach(appendNotice);
+        }
       } catch (_) {}
     }
 
