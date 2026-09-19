@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -17,16 +18,17 @@ from threadaware.evaluations.runner import EvaluationRunner
 from threadaware.evaluations.scoring import aggregate_pass
 from threadaware.insights.analysis import InsightEngine
 from threadaware.memory.understanding import ConversationUnderstandingEngine
+from threadaware.paths import app_data_dir, database_path, exports_dir, settings_path
 from threadaware.providers.openai_provider import OpenAIProvider
 from threadaware.scenarios.library import SCENARIOS
 from threadaware.storage.runs import RunStore
-from threadaware.validation.agreement import percent_agreement
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
+load_dotenv(ROOT / ".env", override=False)
 
-app = FastAPI(title="ThreadAware API", version="0.5.0")
+app = FastAPI(title="ThreadAware API", version="0.6.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,13 +82,31 @@ class ChatRequest(BaseModel):
     model: str | None = None
 
 
+def model_config() -> dict[str, str | None]:
+    return {
+        "target": os.getenv("THREADAWARE_TARGET_MODEL"),
+        "auditor": os.getenv("THREADAWARE_AUDITOR_MODEL"),
+        "judge": os.getenv("THREADAWARE_JUDGE_MODEL"),
+        "understanding": os.getenv("THREADAWARE_UNDERSTANDING_MODEL"),
+        "scenario": os.getenv("THREADAWARE_SCENARIO_MODEL"),
+        "insights": os.getenv("THREADAWARE_INSIGHTS_MODEL"),
+        "fallback": os.getenv("THREADAWARE_FALLBACK_MODEL"),
+    }
+
+
 def live_configured() -> bool:
+    models = model_config()
     return bool(
         os.getenv("OPENAI_API_KEY")
-        and os.getenv("THREADAWARE_TARGET_MODEL")
-        and os.getenv("THREADAWARE_AUDITOR_MODEL")
-        and os.getenv("THREADAWARE_JUDGE_MODEL")
+        and models["target"]
+        and models["auditor"]
+        and models["judge"]
+        and models["understanding"]
     )
+
+
+def chat_live_configured() -> bool:
+    return bool(os.getenv("OPENAI_API_KEY") and os.getenv("THREADAWARE_TARGET_MODEL"))
 
 
 @app.get("/api/health")
@@ -94,11 +114,17 @@ def health() -> dict:
     return {
         "status": "ready",
         "mode": "live" if live_configured() else "demo",
-        "provider": "openai" if live_configured() else None,
-        "pipeline": "auditor-target-continuity-judge",
+        "chat_mode": "live" if chat_live_configured() else "demo",
+        "provider": "openai" if chat_live_configured() else None,
+        "pipeline": "auditor-target-continuity-understanding-judge",
         "conversation_understanding": "interpretations-memory-topic-shifts",
         "conversational_intelligence": "casual-project-mixed-routing",
         "storage": str(store.path),
+        "data_directory": str(app_data_dir()),
+        "exports_directory": str(exports_dir()),
+        "settings_path": str(settings_path()),
+        "token_budget": int(os.getenv("THREADAWARE_TOTAL_TOKEN_BUDGET", "10000000")),
+        "models": model_config(),
     }
 
 
@@ -125,11 +151,11 @@ def analyze_conversation(payload: ChatRequest) -> dict:
     if not payload.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
 
-    live = bool(os.getenv("OPENAI_API_KEY") and os.getenv("THREADAWARE_JUDGE_MODEL"))
+    understanding_model = os.getenv("THREADAWARE_UNDERSTANDING_MODEL")
+    live = bool(os.getenv("OPENAI_API_KEY") and understanding_model)
     if live:
-        provider = OpenAIProvider()
-        understanding.provider = provider
-        understanding.model = os.environ["THREADAWARE_JUDGE_MODEL"]
+        understanding.provider = OpenAIProvider()
+        understanding.model = understanding_model
 
     result = understanding.analyze(turns=payload.messages, live=live)
     return result.model_dump()
@@ -149,6 +175,7 @@ def latest_evaluation() -> dict:
 
     data = DEMO_EVALUATION.model_dump()
     data["mode"] = "demo"
+    data["demo_only"] = True
     data["harmful_compliance_rate"] = 0.021
     data["overrefusal_rate"] = 0.048
     return data
@@ -179,17 +206,16 @@ def model_comparison() -> list[dict]:
 
 @app.get("/api/validation")
 def validation_summary() -> dict:
-    automated = [True, True, False, True, True, True, False, True]
-    expert = [True, True, True, True, True, True, False, True]
+    """Expose validation architecture without presenting synthetic values as evidence."""
     return {
-        "grader_expert_agreement": percent_agreement(automated, expert),
-        "expert_reviewed_scenarios": 42,
-        "repeated_run_consistency": 0.90,
-        "items": [
-            {"criterion": "Appropriateness", "automated": "Pass", "expert": "Pass", "status": "Agree"},
-            {"criterion": "Overrefusal", "automated": "No", "expert": "No", "status": "Agree"},
-            {"criterion": "Context adaptation", "automated": "Pass", "expert": "Review", "status": "Review"},
-        ],
+        "source": "demo-placeholder",
+        "has_real_expert_evidence": False,
+        "grader_expert_agreement": None,
+        "expert_reviewed_scenarios": 0,
+        "repeated_run_consistency": None,
+        "status": "awaiting-expert-evidence",
+        "items": [],
+        "note": "Expert-review workflow is available, but no synthetic agreement values are presented as real validation evidence.",
     }
 
 
@@ -203,19 +229,15 @@ def run_evaluation(payload: RunRequest) -> dict:
         raise HTTPException(
             status_code=400,
             detail=(
-                "Live mode requires OPENAI_API_KEY, THREADAWARE_TARGET_MODEL, "
-                "THREADAWARE_AUDITOR_MODEL and THREADAWARE_JUDGE_MODEL."
+                "Live evaluation requires OPENAI_API_KEY plus target, auditor, judge, "
+                "and understanding model configuration."
             ),
         )
 
     provider = OpenAIProvider() if payload.live else None
     runner = EvaluationRunner(provider=provider)
     try:
-        result = runner.run(
-            scenario,
-            live=payload.live,
-            max_turns=payload.max_turns,
-        )
+        result = runner.run(scenario, live=payload.live, max_turns=payload.max_turns)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -233,13 +255,10 @@ def run_evaluation(payload: RunRequest) -> dict:
 @app.post("/api/evaluations/batch")
 def run_batch(payload: BatchRequest) -> dict:
     if payload.live and not live_configured():
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Live mode requires OPENAI_API_KEY, THREADAWARE_TARGET_MODEL, "
-                "THREADAWARE_AUDITOR_MODEL and THREADAWARE_JUDGE_MODEL."
-            ),
-        )
+        raise HTTPException(status_code=400, detail="Live evaluation model roles are not fully configured.")
+    configured_max = max(1, int(os.getenv("THREADAWARE_MAX_BATCH_RUNS", "25")))
+    if payload.repeats > configured_max:
+        raise HTTPException(status_code=400, detail=f"Batch size exceeds THREADAWARE_MAX_BATCH_RUNS={configured_max}.")
     try:
         return batches.run_repeated(
             scenario_id=payload.scenario_id,
@@ -255,20 +274,42 @@ def run_batch(payload: BatchRequest) -> dict:
 def chat(payload: ChatRequest) -> dict:
     if not payload.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
-    if not os.getenv("OPENAI_API_KEY") or not os.getenv("THREADAWARE_TARGET_MODEL"):
-        raise HTTPException(status_code=400, detail="Live OpenAI mode is not configured.")
+
+    intent = conversation.classify(payload.messages)
+    live = chat_live_configured()
+
+    if not live:
+        interpretation = understanding.analyze(turns=payload.messages, live=False)
+        if interpretation.interpretation.clarification_needed:
+            reply = interpretation.interpretation.clarification_question
+        else:
+            reply = (
+                "ThreadAware is running in demo mode, so I can demonstrate continuity, memory, "
+                "interpretation, and topic-shift behavior, but a live generative reply requires a "
+                "server-side OpenAI API key. You can still explore the scenarios and evaluation pages now."
+            )
+        return {
+            "model": None,
+            "mode": "demo",
+            "demo_only": True,
+            "reply": reply,
+            "clarification_needed": interpretation.interpretation.clarification_needed,
+            "conversation_mode": intent.mode,
+            "intent_reason": intent.reason,
+            "understanding": interpretation.model_dump(),
+        }
 
     provider = OpenAIProvider()
     model = payload.model or os.environ["THREADAWARE_TARGET_MODEL"]
     understanding.provider = provider
-    understanding.model = os.getenv("THREADAWARE_JUDGE_MODEL") or model
+    understanding.model = os.getenv("THREADAWARE_UNDERSTANDING_MODEL") or model
 
     interpretation = understanding.analyze(turns=payload.messages, live=True)
-    intent = conversation.classify(payload.messages)
 
     if interpretation.interpretation.clarification_needed:
         return {
             "model": model,
+            "mode": "live",
             "reply": interpretation.interpretation.clarification_question,
             "clarification_needed": True,
             "conversation_mode": intent.mode,
@@ -295,6 +336,7 @@ def chat(payload: ChatRequest) -> dict:
     )
     return {
         "model": model,
+        "mode": "live",
         "reply": reply,
         "clarification_needed": False,
         "conversation_mode": intent.mode,
@@ -321,9 +363,11 @@ def assets(asset_path: str):
 
 
 def main() -> None:
-    import uvicorn
+    # Backward-compatible programmatic entrypoint; the package console script points
+    # directly at threadaware.launcher:main.
+    from threadaware.launcher import main as launch
 
-    uvicorn.run("threadaware.api:app", host="127.0.0.1", port=8000, reload=True)
+    launch()
 
 
 if __name__ == "__main__":
