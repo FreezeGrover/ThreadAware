@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="attention.css" />
   <link rel="stylesheet" href="final-polish.css" />
+  <link rel="stylesheet" href="consistency.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -42,7 +43,7 @@
           <span class="mode-badge" id="mode-badge">Checking configuration…</span>
           <button class="icon-button" aria-label="Search">⌕</button>
           <button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼ ◔</button>
-          <button class="profile-button"><span class="avatar">R</span><span>Researcher</span><span>⌄</span></button>
+          <div class="profile-button" aria-label="Research workspace"><span class="avatar">R</span><span>Researcher</span></div>
         </div>
       </header>
 
@@ -125,21 +126,8 @@
           <article class="summary-card"><span class="summary-icon mint">⊙</span><div><small>Status</small><b class="sync-text" id="summary-status">Ready</b></div></article>
         </div>
         <div class="continuity-grid">
-          <article class="panel timeline-panel">
-            <h3>Conversation Timeline</h3>
-            <div class="conversation-timeline" id="continuity-timeline"><p class="empty-state">Conversation events will appear here as the dialogue develops.</p></div>
-          </article>
-          <article class="panel state-panel">
-            <h3>Current Context State</h3>
-            <div class="context-table" id="context-table">
-              <div><span class="state-icon blue">◎</span><b>Active goals</b><span>Awaiting context</span></div>
-              <div><span class="state-icon mint">⬡</span><b>Constraints</b><span>Awaiting context</span></div>
-              <div><span class="state-icon purple">♧</span><b>Preferences</b><span>Awaiting context</span></div>
-              <div><span class="state-icon blue">□</span><b>Decisions</b><span>None recorded</span></div>
-              <div><span class="state-icon orange">◆</span><b>Unresolved questions</b><span>None recorded</span></div>
-              <div><span class="state-icon mint">⊙</span><b>Sensitivity</b><span>Awaiting assessment</span></div>
-            </div>
-          </article>
+          <article class="panel timeline-panel"><h3>Conversation Timeline</h3><div class="conversation-timeline" id="continuity-timeline"><p class="empty-state">Conversation events will appear here as the dialogue develops.</p></div></article>
+          <article class="panel state-panel"><h3>Current Context State</h3><div class="context-table" id="context-table"><div><span class="state-icon blue">◎</span><b>Active goals</b><span>Awaiting context</span></div><div><span class="state-icon mint">⬡</span><b>Constraints</b><span>Awaiting context</span></div><div><span class="state-icon purple">♧</span><b>Preferences</b><span>Awaiting context</span></div><div><span class="state-icon blue">□</span><b>Decisions</b><span>None recorded</span></div><div><span class="state-icon orange">◆</span><b>Unresolved questions</b><span>None recorded</span></div><div><span class="state-icon mint">⊙</span><b>Sensitivity</b><span>Awaiting assessment</span></div></div></article>
         </div>
       </section>
 
@@ -152,61 +140,33 @@
           <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Awaiting evaluation</strong><em id="balanced-score">—</em><p>Neither harmful compliance nor needless refusal.</p></article>
           <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Awaiting evaluation</strong><em id="continuity-score">—</em><p>Adaptation to goals, constraints, and changes.</p></article>
         </div>
-        <div class="evaluation-detail-grid">
-          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful compliance <b id="harmful-rate">Awaiting evidence</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Overrefusal <b id="overrefusal-rate">Awaiting evidence</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div></article>
-          <article class="panel severity-panel"><h3>Severity Awareness</h3><strong class="mint-text" id="severity-level">Awaiting assessment</strong><p>Run an evaluation to assess sensitivity calibration.</p><span class="shield-badge">♢</span></article>
-          <article class="panel notes-panel"><h3>What this measures</h3><ul><li>Adaptation when needs change</li><li>Appropriate clarification</li><li>Wellbeing and safety awareness</li><li>Long-horizon consistency</li></ul></article>
-        </div>
+        <div class="evaluation-detail-grid"><article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful compliance <b id="harmful-rate">Awaiting evidence</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Overrefusal <b id="overrefusal-rate">Awaiting evidence</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div></article><article class="panel severity-panel"><h3>Severity Awareness</h3><strong class="mint-text" id="severity-level">Awaiting assessment</strong><p>Run an evaluation to assess sensitivity calibration.</p><span class="shield-badge">♢</span></article><article class="panel notes-panel"><h3>What this measures</h3><ul><li>Adaptation when needs change</li><li>Appropriate clarification</li><li>Wellbeing and safety awareness</li><li>Long-horizon consistency</li></ul></article></div>
       </section>
 
       <section class="view" id="scenarios-view">
         <div class="page-heading split-heading"><div><h1>Scenarios</h1><p>Create and run realistic, multi-turn conversations.</p></div><button class="run-button" id="run-scenario">Run Scenario</button></div>
         <div class="tabbar"><button class="tab active">Library</button><button class="tab">Create New</button><button class="tab">Templates</button><button class="tab">My Scenarios</button></div>
         <div class="scenario-tools"><div class="filter-pills"><button class="active">All</button><button>Wellbeing</button><button>Health</button><button>Continuity</button><button>Safety</button><button>Changing needs</button><button>Returning topics</button></div><div class="search-field">⌕ <input placeholder="Search scenarios..." /></div></div>
-        <div class="scenario-list" id="scenario-list">
-          <article><span class="scenario-icon mint">♣</span><div><b>Wellbeing with changing priorities</b><p>Evaluate whether support adapts as needs and vulnerability evolve.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>14 turns</span><span class="severity medium">● Moderate</span><b>›</b></article>
-          <article><span class="scenario-icon pink">♥</span><div><b>Health context escalation</b><p>Evaluate calibrated support as new details change the level of concern.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Health</span><span>16 turns</span><span class="severity medium">● Moderate</span><b>›</b></article>
-        </div>
+        <div class="scenario-list" id="scenario-list"><article><span class="scenario-icon mint">♣</span><div><b>Wellbeing with changing priorities</b><p>Evaluate whether support adapts as needs and vulnerability evolve.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>14 turns</span><span class="severity medium">● Moderate</span><b>›</b></article><article><span class="scenario-icon pink">♥</span><div><b>Health context escalation</b><p>Evaluate calibrated support as new details change the level of concern.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Health</span><span>16 turns</span><span class="severity medium">● Moderate</span><b>›</b></article></div>
       </section>
 
       <section class="view" id="validation-view">
         <div class="page-heading split-heading"><div><h1>Validation</h1><p>Ensure our evaluations are reliable with expert review.</p></div><select class="context-select"><option>Current Project</option></select></div>
         <div class="tabbar"><button class="tab active">Expert Review</button><button class="tab">Grader Agreement</button><button class="tab">Methodology</button><button class="tab">Reproducibility</button></div>
-        <div class="validation-grid">
-          <article class="validation-card"><span class="summary-icon blue">♙♙♙</span><div><small>Expert Involvement</small><strong id="expert-count">Workflow ready</strong><p>Reviewer workflow is prepared; expert evidence has not yet been entered.</p></div></article>
-          <article class="validation-card"><span class="summary-icon purple">◎</span><div><small>Grader Agreement</small><strong id="grader-agreement">Awaiting evidence</strong><p>Agreement metrics appear after real expert judgments are available.</p></div></article>
-          <article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting expert evidence</strong><p>Demonstration data remains explicitly separate from validated evidence.</p></div></article>
-        </div>
-        <div class="validation-detail-grid">
-          <article class="panel"><h3>Planned Review Domains</h3><div class="domain-pills"><span>Mental Health</span><span>General Health</span><span>Safety</span><span>Human Factors</span><span>Evaluation Science</span><span>Multilingual &amp; Cultural Context</span></div></article>
-          <article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>Awaiting data</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>Awaiting data</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>Awaiting data</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article>
-          <article class="panel report-panel"><button class="outline-button">View Full Report</button></article>
-        </div>
+        <div class="validation-grid"><article class="validation-card"><span class="summary-icon blue">♙</span><div><small>Expert Involvement</small><strong id="expert-count">Workflow ready</strong><p>Reviewer workflow is prepared; expert evidence has not yet been entered.</p></div></article><article class="validation-card"><span class="summary-icon purple">◎</span><div><small>Grader Agreement</small><strong id="grader-agreement">Awaiting evidence</strong><p>Agreement metrics appear after real expert judgments are available.</p></div></article><article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting expert evidence</strong><p>Demonstration data remains explicitly separate from validated evidence.</p></div></article></div>
+        <div class="validation-detail-grid"><article class="panel"><h3>Planned Review Domains</h3><div class="domain-pills"><span>Mental Health</span><span>General Health</span><span>Safety</span><span>Human Factors</span><span>Evaluation Science</span><span>Multilingual &amp; Cultural Context</span></div></article><article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>Awaiting data</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>Awaiting data</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>Awaiting data</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article><article class="panel report-panel"><button class="outline-button">View Full Report</button></article></div>
       </section>
 
       <section class="view" id="insights-view">
         <div class="page-heading"><h1>Insights</h1><p>Understand patterns and improve AI behavior.</p></div>
-        <div class="insight-kpis">
-          <article><span class="summary-icon blue">▢</span><div><small>Total Conversations</small><strong id="insight-runs">0</strong><p>Across stored evaluation runs</p></div></article>
-          <article><span class="summary-icon mint">▥</span><div><small>Average Length</small><strong id="avg-turns">Awaiting data</strong><p>Per conversation</p></div></article>
-          <article><span class="summary-icon mint">♢</span><div><small>Consistency</small><strong id="consistency">Awaiting data</strong><p>Context maintained</p></div></article>
-          <article><span class="summary-icon pink">△</span><div><small>Risk Rate</small><strong id="risk-rate">Awaiting data</strong><p>Problematic responses</p></div></article>
-        </div>
-        <div class="insights-grid">
-          <article class="panel performance-panel"><h3>Performance by Category</h3><div id="category-bars"><p class="empty-state">Run evaluations to generate evidence-backed category performance.</p></div></article>
-          <article class="panel strengths-panel"><h3>Common Strengths</h3><ul id="strength-list"><li>Insights appear when supported by stored runs.</li></ul></article>
-          <article class="panel improvement-panel"><h3>Areas for Improvement</h3><ul id="improvement-list"><li>Hypotheses remain separate from measured results.</li></ul></article>
-        </div>
+        <div class="insight-kpis"><article><span class="summary-icon blue">▢</span><div><small>Total Conversations</small><strong id="insight-runs">0</strong><p>Across stored evaluation runs</p></div></article><article><span class="summary-icon mint">▥</span><div><small>Average Length</small><strong id="avg-turns">Awaiting data</strong><p>Per conversation</p></div></article><article><span class="summary-icon mint">♢</span><div><small>Consistency</small><strong id="consistency">Awaiting data</strong><p>Context maintained</p></div></article><article><span class="summary-icon pink">△</span><div><small>Risk Rate</small><strong id="risk-rate">Awaiting data</strong><p>Problematic responses</p></div></article></div>
+        <div class="insights-grid"><article class="panel performance-panel"><h3>Performance by Category</h3><div id="category-bars"><p class="empty-state">Run evaluations to generate evidence-backed category performance.</p></div></article><article class="panel strengths-panel"><h3>Common Strengths</h3><ul id="strength-list"><li>Insights appear when supported by stored runs.</li></ul></article><article class="panel improvement-panel"><h3>Areas for Improvement</h3><ul id="improvement-list"><li>Hypotheses remain separate from measured results.</li></ul></article></div>
         <div class="insight-actions"><button class="outline-button">Export Insights</button></div>
       </section>
 
       <section class="view" id="settings-view">
         <div class="page-heading"><h1>Settings</h1><p>Research configuration, models, and budget visibility.</p></div>
-        <div class="settings-grid settings-grid-strong">
-          <article class="panel"><h3>Model roles</h3><div class="settings-rows"><div><span>Target model</span><b id="target-model">Loading configuration…</b></div><div><span>Auditor</span><b id="auditor-model">Loading configuration…</b></div><div><span>Judge</span><b id="judge-model">Loading configuration…</b></div><div><span>Understanding</span><b id="understanding-model">Loading configuration…</b></div></div></article>
-          <article class="panel"><h3>API connection</h3><div class="connection-status"><span class="connection-dot"></span><div><small>OpenAI API</small><strong id="api-key-status">Checking secure configuration…</strong></div></div><p class="muted-copy">The API key is read only from the local <code>.env</code> file and remains server-side. It is never exposed in the browser or committed to GitHub.</p></article>
-          <article class="panel"><h3>Token budget</h3><div class="budget-hero"><strong>10M</strong><span>configured project token ceiling</span></div><p class="muted-copy">The granted token allocation is tracked through ThreadAware’s project-side budget controls. The interface does not assume the provider exposes a live remaining-grant balance.</p></article>
-        </div>
+        <div class="settings-grid settings-grid-strong"><article class="panel"><h3>Model roles</h3><div class="settings-rows"><div><span>Target model</span><b id="target-model">Loading configuration…</b></div><div><span>Auditor</span><b id="auditor-model">Loading configuration…</b></div><div><span>Judge</span><b id="judge-model">Loading configuration…</b></div><div><span>Understanding</span><b id="understanding-model">Loading configuration…</b></div></div></article><article class="panel"><h3>API connection</h3><div class="connection-status"><span class="connection-dot"></span><div><small>OpenAI API</small><strong id="api-key-status">Checking secure configuration…</strong></div></div><p class="muted-copy">The API key is read only from the local <code>.env</code> file and remains server-side. It is never exposed in the browser or committed to GitHub.</p></article><article class="panel"><h3>Token budget</h3><div class="budget-hero"><strong>10M</strong><span>configured project token ceiling</span></div><p class="muted-copy">The granted token allocation is tracked through ThreadAware’s project-side budget controls. The interface does not assume the provider exposes a live remaining-grant balance.</p></article></div>
       </section>
     </main>
   </div>
@@ -214,5 +174,6 @@
   <div class="toast" id="toast" role="status"></div>
   <script src="app.js"></script>
   <script src="attention.js"></script>
+  <script src="enhancements.js"></script>
 </body>
 </html>
