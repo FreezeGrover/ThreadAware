@@ -45,16 +45,16 @@ class ConversationUnderstandingEngine:
             relation = "related" if previous_words & topic_words else "new"
             shifted = True
             acknowledgement = (
-                f"We’ve moved from {previous} to {topic}. I’ll keep the earlier thread with us."
+                f"The conversation has moved from {previous} toward {topic}."
                 if relation == "new"
-                else f"This still connects to {previous}, but the focus has moved toward {topic}."
+                else f"The focus has moved toward {topic}, while still connecting with what came before."
             )
-            noticing.append({"kind": "topic-shift", "title": "The direction changed", "note": acknowledgement, "importance": "normal"})
+            noticing.append({"kind": "topic-shift", "title": "Shift", "note": acknowledgement, "importance": "normal"})
         elif not previous:
             relation = "new"
-            noticing.append({"kind": "connection", "title": "Starting the thread", "note": f"We’re starting with {topic}.", "importance": "quiet"})
+            noticing.append({"kind": "connection", "title": "Opening", "note": f"The conversation is beginning around {topic}.", "importance": "quiet"})
         else:
-            noticing.append({"kind": "connection", "title": "Still following", "note": f"The conversation is continuing around {topic}.", "importance": "quiet"})
+            noticing.append({"kind": "connection", "title": "Continuing", "note": f"This continues the current thread around {topic}.", "importance": "quiet"})
 
         self.active_topic = topic
         memory_item = self.memory.upsert(
@@ -69,7 +69,7 @@ class ConversationUnderstandingEngine:
         clarification_question = None
         reason = "The latest turn has one sufficiently clear operational reading."
 
-        if self._has_material_demo_ambiguity(turns):
+        if self._has_competing_demo_readings(turns):
             candidates = self._candidate_referent_labels(turns)
             first = candidates[0] if len(candidates) > 0 else "the first recent item"
             second = candidates[1] if len(candidates) > 1 else "the other recent item"
@@ -80,7 +80,7 @@ class ConversationUnderstandingEngine:
             clarification_needed = True
             clarification_question = f"When you say that, do you mean {first}, or {second}?"
             reason = "More than one plausible reading survives and choosing one could materially change the response."
-            noticing.append({"kind": "possible-interpretations", "title": "More than one possible reading", "note": "I’m keeping the reasonable possibilities open instead of guessing.", "importance": "normal"})
+            noticing.append({"kind": "possible-interpretations", "title": "Possible readings", "note": "There is more than one reasonable way to read that, so choosing one without checking could change the answer.", "importance": "normal"})
 
         payload = {
             "active_topic": topic,
@@ -103,7 +103,7 @@ class ConversationUnderstandingEngine:
         return ConversationUnderstanding.model_validate(payload)
 
     @staticmethod
-    def _has_material_demo_ambiguity(turns: list[Turn]) -> bool:
+    def _has_competing_demo_readings(turns: list[Turn]) -> bool:
         if len(turns) < 2:
             return False
         latest = turns[-1].content.lower()
@@ -130,36 +130,40 @@ class ConversationUnderstandingEngine:
 
         # PRODUCT-BEHAVIOR EXAMPLES ONLY — NEVER PREDETERMINED RESPONSES.
         # The noticing stream should feel like a perceptive person quietly following the
-        # conversation. The model may show the *spirit* of thoughts such as noticing that
-        # the topic changed, that the user skipped an earlier question, that an old thread
-        # has returned, or that the conversation changed direction again. It may sometimes
-        # be lightly funny when the context is casual, curious when a return is interesting,
-        # or calm and serious when wellbeing/risk increases. These are examples of behavior
-        # and tone only. The wording must always be freshly generated from the actual turn;
-        # do not copy stock phrases, rotate templates, or hard-code canned responses.
+        # conversation: aware of a change, a return, an unanswered thread, or simply the
+        # tone and direction of an ordinary turn. The wording must always be freshly
+        # generated from the actual conversation and must never rotate stock phrases.
         prompt = f"""You are ThreadAware's conversation-understanding layer.
 
 Analyze the latest user turn against the entire visible conversation and ThreadAware memory.
-Do not reveal hidden chain-of-thought. Instead, create a transparent, user-safe awareness trace describing what you noticed in the conversation and what you are carrying forward.
+Do not reveal hidden chain-of-thought. Create a short, user-safe observation about what matters in the conversation right now and what should remain in view.
 
 Track carefully:
 1. The current topic and whether the user continued it, changed it, or returned to an earlier one.
 2. Goals, priorities, constraints, decisions, corrections, and details that modify earlier information.
 3. Changes in sensitivity, urgency, wellbeing, or risk.
-4. More than one reasonable interpretation when it genuinely matters. Call these possible interpretations or possible readings. Never use the word "ambiguity" in user-facing text.
-5. Questions the assistant asked that the user did not answer. Keep them as open threads without nagging, and notice when it becomes natural to return to them.
+4. More than one reasonable interpretation when it genuinely matters. Describe these as possible interpretations or possible readings.
+5. Questions the assistant asked that the user did not answer. Keep them as open threads without nagging.
 6. Repeated or revisited ideas. Treat a return as a return, not as brand-new information.
 7. Connections between older threads and the current turn.
 8. Ordinary conversational movement too, including greetings, check-ins, jokes, small pivots, and continuations.
 
-NOTICING STYLE:
-- Produce at least one noticing item for EVERY user turn, including a greeting or a turn where no major change occurred.
-- The noticing item should sound natural, observant, curious, and context-sensitive rather than like a machine log.
-- You may be lightly playful or funny in casual contexts, but never force humor and never use playful language for serious or sensitive moments.
-- Vary wording naturally. Do not repeatedly begin with the same interjection.
-- Do not invent feelings, motives, or facts. Describe only what the conversation supports.
-- Do not make the noticing panel sound like a diagnostic report.
-- Do not expose private reasoning steps. Show the conclusion of what was noticed, not hidden deliberation.
+NOTICING VOICE — THIS MATTERS A LOT:
+- Produce at least one noticing item for EVERY user turn, including a greeting or an ordinary continuation.
+- Write the note as if a warm, perceptive companion were quietly keeping the thread, not as a classifier, dashboard, event log, or analyst.
+- The note should usually be ONE natural sentence. Two short sentences are fine when genuinely useful.
+- Prefer ordinary conversational words. Never expose internal category names, taxonomies, labels, or phrases such as "casual greeting and wellbeing check-in", "bat ownership question", "topic A", or "topic B".
+- Do not mechanically narrate transitions as "We moved from X to Y". Describe the human meaning of the turn instead.
+- Do not repeatedly say that you are "keeping both threads in view", "keeping the earlier thread in mind", "following along", or equivalent stock phrases.
+- Do not begin notes or titles with filler interjections such as "Hmm", "Oh", "Interesting", "Aha", or "Well".
+- Do not use the same opening, sentence skeleton, or closing across adjacent notices. Read the previous conversation and vary naturally.
+- A greeting is not automatically a topic change. Treat greetings and check-ins lightly unless they genuinely alter the conversation.
+- Do not overstate tiny shifts. Sometimes the right observation is simply that the user is continuing, checking in, joking, or opening a new question.
+- You may be lightly playful in casual contexts, but never force humor and never use playful language for serious or sensitive moments.
+- Do not invent feelings, motives, or facts.
+- Never sound clinical, diagnostic, bureaucratic, or robotic.
+- Do not expose private reasoning steps. Show only the concise conclusion of what was noticed.
+- The title is metadata for the interface and is not shown prominently. Keep it neutral and very short (1–3 words). Put the natural language in the note.
 
 Return JSON only with this shape:
 {{
@@ -187,15 +191,14 @@ Return JSON only with this shape:
 }}
 
 Rules:
-- At least one noticing item every turn. An unchanged topic is still something to notice naturally.
-- A greeting/check-in should still receive a light, human observation instead of producing an empty noticing list.
-- Add more than one only when multiple meaningful things happened.
-- If an earlier assistant question remains unanswered, preserve it as an open-question observation when still relevant.
+- At least one noticing item every turn.
+- Add more than one only when two genuinely different things matter; do not split one thought into multiple cards.
+- If an earlier assistant question remains unanswered, preserve it only when it still matters naturally.
 - If the latest turn answers it, stop describing it as unanswered.
-- If an old topic returns, use relation="returning" and make that return visible.
-- If a previous goal or priority changes, record the change rather than only the new state.
-- If a new constraint appears, say what changed.
-- Keep titles short and notes concise but natural.
+- If an old topic returns, use relation="returning" internally, but phrase the note naturally rather than announcing a classification.
+- If a previous goal or priority changes, describe what changed in plain language.
+- If a new constraint appears, describe its practical effect rather than merely labeling it a constraint.
+- Keep each note concise enough to read at a glance, ideally under 35 words.
 
 Existing ThreadAware memory:
 {json.dumps(memories, indent=2)}
@@ -213,10 +216,9 @@ Full visible transcript:
         )
         data = self._parse_json(raw)
 
-        # Do not rely on prompt-following alone. Some live models correctly analyze the
-        # conversation yet omit noticing on ordinary turns. If that happens, run a small
-        # noticing-only generation pass. This is still model-generated from the actual
-        # conversation: there are no canned fallback sentences or rotating templates.
+        # Some live models can complete the structural analysis yet omit a notice on an
+        # ordinary turn. In that case a second, narrowly-scoped generative pass supplies
+        # the conversation-specific observation. Nothing is selected from canned text.
         if not data.get("noticing"):
             data["noticing"] = self._generate_live_noticing(
                 transcript=transcript,
@@ -247,11 +249,22 @@ Full visible transcript:
         """Generate at least one fresh, user-safe noticing event when the main pass omitted it."""
         prompt = f"""You are ThreadAware's noticing layer.
 
-The main conversation analysis was valid but returned no noticing items. Generate the missing awareness trace now.
+The structural conversation analysis returned no noticing item. Write the missing observation for the latest user turn.
 
-You MUST return at least one noticing event for the latest user turn, even if it is only a greeting, check-in, joke, continuation, or ordinary conversational move. Do not require a topic change before noticing something.
+You MUST return at least one event, even when the latest turn is only a greeting, check-in, joke, continuation, or ordinary question.
 
-The observation should feel natural and human: quietly observant, curious where appropriate, lightly playful only when the context supports it, and calm for sensitive material. Do not invent motives or feelings. Do not expose hidden chain-of-thought. Do not use canned wording or reusable templates. Write specifically for this conversation.
+VOICE:
+- Write like a warm, perceptive companion quietly following the conversation.
+- Usually write one natural sentence, ideally under 35 words.
+- Use ordinary human language, never internal category names or taxonomy labels from the analysis.
+- Do not mechanically say "we moved from X to Y".
+- Do not use stock closings about "keeping both threads in view" or "keeping the earlier thread in mind".
+- Do not begin with "Hmm", "Oh", "Interesting", "Aha", or similar filler.
+- Do not reuse a sentence pattern merely because it worked on an earlier turn.
+- A greeting or check-in is not automatically a topic shift.
+- Do not invent motives, emotions, or facts.
+- Do not expose hidden reasoning.
+- Keep the title neutral and very short; the note carries the natural wording.
 
 Return JSON only:
 {{
@@ -263,7 +276,7 @@ Return JSON only:
   }}]
 }}
 
-Existing analysis:
+Existing analysis (use it for facts, but do not copy its category labels into the note):
 {json.dumps(analysis, indent=2)}
 
 Existing ThreadAware memory:
@@ -273,8 +286,6 @@ Full visible transcript:
 {transcript}
 """
 
-        # Retry once if the first noticing-only response still fails to provide an event.
-        # Both attempts remain generative and conversation-specific; nothing is hard-coded.
         for _ in range(2):
             raw = self.provider.complete(
                 model=self.model,
