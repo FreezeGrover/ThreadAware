@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from threadaware.common.models import Turn
@@ -67,24 +68,26 @@ class ConversationUnderstandingEngine:
         clarification_question = None
         reason = "The latest turn has one sufficiently clear operational reading."
 
-        ambiguity_markers = ["it", "that", "this", "they", "he", "she", "there", "same one", "the other one"]
-        if any(marker in lower.split() for marker in ambiguity_markers) and len(turns) > 1:
+        if self._has_material_demo_ambiguity(turns):
+            candidates = self._candidate_referent_labels(turns)
+            first = candidates[0] if len(candidates) > 0 else "the first recent item"
+            second = candidates[1] if len(candidates) > 1 else "the other recent item"
             interpretations = [
                 {
-                    "label": "recent-context reading",
-                    "description": "The phrase most likely refers to the most recent relevant topic or item in the conversation.",
-                    "confidence": 0.62,
-                    "evidence": ["Recency of the immediately preceding context"],
+                    "label": f"{first} reading",
+                    "description": f"The request may refer to {first}.",
+                    "confidence": 0.5,
+                    "evidence": [f"{first} remains an active candidate in the preceding turn"],
                 },
                 {
-                    "label": "earlier-thread reading",
-                    "description": "The phrase could instead refer to an earlier still-active topic or remembered item.",
-                    "confidence": 0.38,
-                    "evidence": ["Earlier active conversation memory remains available"],
+                    "label": f"{second} reading",
+                    "description": f"The request may instead refer to {second}.",
+                    "confidence": 0.5,
+                    "evidence": [f"{second} also remains an active candidate in the preceding turn"],
                 },
             ]
             clarification_needed = True
-            clarification_question = "When you say that, do you mean the most recent thing we were discussing, or the earlier related thread?"
+            clarification_question = f"When you say that, do you mean {first}, or {second}?"
             reason = "More than one plausible reading survives and choosing one could materially change the response."
 
         payload = {
@@ -105,6 +108,50 @@ class ConversationUnderstandingEngine:
             },
         }
         return ConversationUnderstanding.model_validate(payload)
+
+    @staticmethod
+    def _has_material_demo_ambiguity(turns: list[Turn]) -> bool:
+        """Conservative offline heuristic for unresolved references.
+
+        Demo mode asks for clarification only when the latest turn contains a
+        context-dependent reference and the preceding user context visibly
+        offers competing alternatives. Live mode delegates the fuller decision
+        to the configured understanding model.
+        """
+        if len(turns) < 2:
+            return False
+
+        latest = turns[-1].content.lower()
+        tokens = set(re.findall(r"[a-z]+(?:'[a-z]+)?", latest))
+        has_reference = bool(
+            tokens & {"it", "that", "this", "they", "he", "she", "there"}
+            or re.search(r"\b(?:same|other)\s+one\b", latest)
+        )
+        if not has_reference:
+            return False
+
+        prior = next(
+            (turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"),
+            turns[-2].content.lower(),
+        )
+        has_competing_referents = bool(
+            re.search(r"\b(?:and|or|versus|vs\.?|either)\b", prior)
+            or prior.count(",") >= 1
+        )
+        return has_competing_referents
+
+    @staticmethod
+    def _candidate_referent_labels(turns: list[Turn]) -> list[str]:
+        prior = next(
+            (turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"),
+            "",
+        )
+        labels = re.findall(r"\b(?:the|a|an|my|your)\s+([a-z][a-z0-9_-]*)", prior)
+        unique: list[str] = []
+        for label in labels:
+            if label not in unique:
+                unique.append(label)
+        return [f"the {label}" for label in unique[-2:]]
 
     def _analyze_live(self, turns: list[Turn]) -> ConversationUnderstanding:
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in turns[-30:])

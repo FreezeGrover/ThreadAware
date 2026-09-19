@@ -22,5 +22,8 @@ dev = ["pytest>=8.0", "httpx>=0.27"]
 [project.scripts]
 threadaware = "threadaware.launcher:main"
 
+[tool.setuptools.packages.find]
+include = ["threadaware*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

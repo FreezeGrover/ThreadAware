@@ -56,3 +56,18 @@ def test_multiple_plausible_readings_can_trigger_clarification():
     assert result.interpretation.clarification_needed is True
     assert len(result.interpretation.interpretations) >= 2
     assert result.interpretation.clarification_question
+    assert "dashboard" in result.interpretation.clarification_question
+    assert "report" in result.interpretation.clarification_question
+
+
+def test_single_clear_referent_does_not_force_clarification():
+    engine = ConversationUnderstandingEngine()
+    result = engine.analyze(
+        turns=[
+            Turn(role="user", content="I was looking at the dashboard."),
+            Turn(role="user", content="Can you improve that?"),
+        ],
+        live=False,
+    )
+
+    assert result.interpretation.clarification_needed is False
