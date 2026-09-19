@@ -7,6 +7,7 @@
   <title>ThreadAware</title>
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="attention.css" />
+  <link rel="stylesheet" href="final-polish.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -38,7 +39,7 @@
       <header class="topbar">
         <div class="crumbs" id="view-kicker">CLARITY · BUILDS · PROGRESS</div>
         <div class="top-actions">
-          <span class="mode-badge" id="mode-badge">Checking mode…</span>
+          <span class="mode-badge" id="mode-badge">Checking configuration…</span>
           <button class="icon-button" aria-label="Search">⌕</button>
           <button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼ ◔</button>
           <button class="profile-button"><span class="avatar">R</span><span>Researcher</span><span>⌄</span></button>
@@ -84,21 +85,21 @@
           <section class="rail-card continuity-rail">
             <div class="rail-title"><span class="rail-icon mint">◇</span><b>Conversation Continuity</b><span class="sync">↝ In sync</span></div>
             <div class="mini-timeline">
-              <div class="mini-state mint-dot"><small>Current Topic</small><strong>Waiting for conversation</strong></div>
-              <div class="mini-state mint-dot"><small>User Goal</small><strong>Not identified yet</strong></div>
-              <div class="mini-state purple-dot"><small>Preferences &amp; Constraints</small><strong>None recorded yet</strong></div>
-              <div class="mini-state mint-dot"><small>Decisions Made</small><strong>None recorded yet</strong></div>
-              <div class="mini-state orange-dot"><small>Open Questions</small><strong>None yet</strong></div>
+              <div class="mini-state mint-dot"><small>Current Topic</small><strong>Ready for conversation</strong></div>
+              <div class="mini-state mint-dot"><small>User Goal</small><strong>Awaiting context</strong></div>
+              <div class="mini-state purple-dot"><small>Preferences &amp; Constraints</small><strong>Awaiting context</strong></div>
+              <div class="mini-state mint-dot"><small>Decisions Made</small><strong>No decisions recorded</strong></div>
+              <div class="mini-state orange-dot"><small>Open Questions</small><strong>No open questions</strong></div>
             </div>
           </section>
 
           <section class="rail-card evaluation-rail">
             <div class="rail-title"><span class="rail-icon blue">▥</span><b>Evaluation Summary</b><button class="text-button" data-jump="evaluations">View Details ›</button></div>
             <div class="evaluation-mini-grid">
-              <div><span class="eval-icon mint">✓</span><small>Helpful</small><b>Not run</b></div>
-              <div><span class="eval-icon blue">♙</span><small>Appropriate</small><b>Not run</b></div>
-              <div><span class="eval-icon orange">♢</span><small>Balanced</small><b>Not run</b></div>
-              <div><span class="eval-icon purple">⌘</span><small>Continuity</small><b>Not run</b></div>
+              <div><span class="eval-icon mint">✓</span><small>Helpful</small><b>Awaiting evaluation</b></div>
+              <div><span class="eval-icon blue">♙</span><small>Appropriate</small><b>Awaiting evaluation</b></div>
+              <div><span class="eval-icon orange">♢</span><small>Balanced</small><b>Awaiting evaluation</b></div>
+              <div><span class="eval-icon purple">⌘</span><small>Continuity</small><b>Awaiting evaluation</b></div>
             </div>
           </section>
 
@@ -118,9 +119,9 @@
         </div>
         <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Timeline</button><button class="tab">Context State</button><button class="tab">Decisions</button><button class="tab">Open Questions</button></div>
         <div class="summary-grid four-cols">
-          <article class="summary-card"><span class="summary-icon mint">▣</span><div><small>Topic</small><b id="summary-topic">Waiting for conversation</b></div></article>
-          <article class="summary-card"><span class="summary-icon mint">⚑</span><div><small>User Goal</small><b id="summary-goal">Not identified yet</b></div></article>
-          <article class="summary-card"><span class="summary-icon purple">✿</span><div><small>Preferences &amp; Constraints</small><b id="summary-preferences">None recorded yet</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">▣</span><div><small>Topic</small><b id="summary-topic">Ready for conversation</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">⚑</span><div><small>User Goal</small><b id="summary-goal">Awaiting context</b></div></article>
+          <article class="summary-card"><span class="summary-icon purple">✿</span><div><small>Preferences &amp; Constraints</small><b id="summary-preferences">Awaiting context</b></div></article>
           <article class="summary-card"><span class="summary-icon mint">⊙</span><div><small>Status</small><b class="sync-text" id="summary-status">Ready</b></div></article>
         </div>
         <div class="continuity-grid">
@@ -131,12 +132,12 @@
           <article class="panel state-panel">
             <h3>Current Context State</h3>
             <div class="context-table" id="context-table">
-              <div><span class="state-icon blue">◎</span><b>Active goals</b><span>None</span></div>
-              <div><span class="state-icon mint">⬡</span><b>Constraints</b><span>None</span></div>
-              <div><span class="state-icon purple">♧</span><b>Preferences</b><span>None</span></div>
-              <div><span class="state-icon blue">□</span><b>Decisions</b><span>None</span></div>
-              <div><span class="state-icon orange">◆</span><b>Unresolved questions</b><span>None</span></div>
-              <div><span class="state-icon mint">⊙</span><b>Sensitivity</b><span>Not assessed</span></div>
+              <div><span class="state-icon blue">◎</span><b>Active goals</b><span>Awaiting context</span></div>
+              <div><span class="state-icon mint">⬡</span><b>Constraints</b><span>Awaiting context</span></div>
+              <div><span class="state-icon purple">♧</span><b>Preferences</b><span>Awaiting context</span></div>
+              <div><span class="state-icon blue">□</span><b>Decisions</b><span>None recorded</span></div>
+              <div><span class="state-icon orange">◆</span><b>Unresolved questions</b><span>None recorded</span></div>
+              <div><span class="state-icon mint">⊙</span><b>Sensitivity</b><span>Awaiting assessment</span></div>
             </div>
           </article>
         </div>
@@ -146,14 +147,14 @@
         <div class="page-heading split-heading"><div><h1>Evaluations</h1><p>Assess AI responses for safety, helpfulness, and contextual consistency.</p></div><select class="context-select"><option>Current Conversation</option></select></div>
         <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Criteria</button><button class="tab">Results</button><button class="tab">Model Comparison</button><button class="tab">Export</button></div>
         <div class="score-grid">
-          <article class="score-card"><div class="score-label"><span class="summary-icon mint">✓</span><b>Helpful</b></div><strong class="mint-text">Not run</strong><em id="helpfulness-score">—</em><p>Relevance and usefulness across the conversation.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon blue">♢</span><b>Appropriate</b></div><strong class="blue-text">Not run</strong><em id="appropriateness-score">—</em><p>Fit to user needs, sensitivity, and safety.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Not run</strong><em id="balanced-score">—</em><p>Neither harmful compliance nor needless refusal.</p></article>
-          <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Not run</strong><em id="continuity-score">—</em><p>Adaptation to goals, constraints, and changes.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon mint">✓</span><b>Helpful</b></div><strong class="mint-text">Awaiting evaluation</strong><em id="helpfulness-score">—</em><p>Relevance and usefulness across the conversation.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon blue">♢</span><b>Appropriate</b></div><strong class="blue-text">Awaiting evaluation</strong><em id="appropriateness-score">—</em><p>Fit to user needs, sensitivity, and safety.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Awaiting evaluation</strong><em id="balanced-score">—</em><p>Neither harmful compliance nor needless refusal.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Awaiting evaluation</strong><em id="continuity-score">—</em><p>Adaptation to goals, constraints, and changes.</p></article>
         </div>
         <div class="evaluation-detail-grid">
-          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful compliance <b id="harmful-rate">—</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Overrefusal <b id="overrefusal-rate">—</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div></article>
-          <article class="panel severity-panel"><h3>Severity Awareness</h3><strong class="mint-text" id="severity-level">Awaiting run</strong><p>Run an evaluation to assess sensitivity calibration.</p><span class="shield-badge">♢</span></article>
+          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful compliance <b id="harmful-rate">Awaiting evidence</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Overrefusal <b id="overrefusal-rate">Awaiting evidence</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div></article>
+          <article class="panel severity-panel"><h3>Severity Awareness</h3><strong class="mint-text" id="severity-level">Awaiting assessment</strong><p>Run an evaluation to assess sensitivity calibration.</p><span class="shield-badge">♢</span></article>
           <article class="panel notes-panel"><h3>What this measures</h3><ul><li>Adaptation when needs change</li><li>Appropriate clarification</li><li>Wellbeing and safety awareness</li><li>Long-horizon consistency</li></ul></article>
         </div>
       </section>
@@ -172,13 +173,13 @@
         <div class="page-heading split-heading"><div><h1>Validation</h1><p>Ensure our evaluations are reliable with expert review.</p></div><select class="context-select"><option>Current Project</option></select></div>
         <div class="tabbar"><button class="tab active">Expert Review</button><button class="tab">Grader Agreement</button><button class="tab">Methodology</button><button class="tab">Reproducibility</button></div>
         <div class="validation-grid">
-          <article class="validation-card"><span class="summary-icon blue">♙♙♙</span><div><small>Expert Involvement</small><strong id="expert-count">Demo</strong><p>Reviewer workflow ready; no real expert count claimed.</p></div></article>
-          <article class="validation-card"><span class="summary-icon purple">◎</span><div><small>Grader Agreement</small><strong id="grader-agreement">Demo</strong><p>Shown only after real expert judgments exist.</p></div></article>
-          <article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting evidence</strong><p>Demo data is explicitly separated from validated evidence.</p></div></article>
+          <article class="validation-card"><span class="summary-icon blue">♙♙♙</span><div><small>Expert Involvement</small><strong id="expert-count">Workflow ready</strong><p>Reviewer workflow is prepared; expert evidence has not yet been entered.</p></div></article>
+          <article class="validation-card"><span class="summary-icon purple">◎</span><div><small>Grader Agreement</small><strong id="grader-agreement">Awaiting evidence</strong><p>Agreement metrics appear after real expert judgments are available.</p></div></article>
+          <article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting expert evidence</strong><p>Demonstration data remains explicitly separate from validated evidence.</p></div></article>
         </div>
         <div class="validation-detail-grid">
           <article class="panel"><h3>Planned Review Domains</h3><div class="domain-pills"><span>Mental Health</span><span>General Health</span><span>Safety</span><span>Human Factors</span><span>Evaluation Science</span><span>Multilingual &amp; Cultural Context</span></div></article>
-          <article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>—</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>—</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>—</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article>
+          <article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>Awaiting data</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>Awaiting data</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>Awaiting data</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article>
           <article class="panel report-panel"><button class="outline-button">View Full Report</button></article>
         </div>
       </section>
@@ -187,9 +188,9 @@
         <div class="page-heading"><h1>Insights</h1><p>Understand patterns and improve AI behavior.</p></div>
         <div class="insight-kpis">
           <article><span class="summary-icon blue">▢</span><div><small>Total Conversations</small><strong id="insight-runs">0</strong><p>Across stored evaluation runs</p></div></article>
-          <article><span class="summary-icon mint">▥</span><div><small>Average Length</small><strong id="avg-turns">— turns</strong><p>Per conversation</p></div></article>
-          <article><span class="summary-icon mint">♢</span><div><small>Consistency</small><strong id="consistency">—</strong><p>Context maintained</p></div></article>
-          <article><span class="summary-icon pink">△</span><div><small>Risk Rate</small><strong id="risk-rate">—</strong><p>Problematic responses</p></div></article>
+          <article><span class="summary-icon mint">▥</span><div><small>Average Length</small><strong id="avg-turns">Awaiting data</strong><p>Per conversation</p></div></article>
+          <article><span class="summary-icon mint">♢</span><div><small>Consistency</small><strong id="consistency">Awaiting data</strong><p>Context maintained</p></div></article>
+          <article><span class="summary-icon pink">△</span><div><small>Risk Rate</small><strong id="risk-rate">Awaiting data</strong><p>Problematic responses</p></div></article>
         </div>
         <div class="insights-grid">
           <article class="panel performance-panel"><h3>Performance by Category</h3><div id="category-bars"><p class="empty-state">Run evaluations to generate evidence-backed category performance.</p></div></article>
@@ -201,9 +202,10 @@
 
       <section class="view" id="settings-view">
         <div class="page-heading"><h1>Settings</h1><p>Research configuration, models, and budget visibility.</p></div>
-        <div class="settings-grid">
-          <article class="panel"><h3>Model roles</h3><div class="settings-rows"><div><span>Target model</span><b id="target-model">Configured server-side</b></div><div><span>Auditor</span><b id="auditor-model">Configured server-side</b></div><div><span>Judge</span><b id="judge-model">Configured server-side</b></div><div><span>Understanding</span><b id="understanding-model">Configured server-side</b></div></div></article>
-          <article class="panel"><h3>Token budget</h3><div class="budget-hero"><strong>10M</strong><span>configured project token ceiling</span></div><p class="muted-copy">The configured grant is tracked as a project-side budget ledger. API credentials remain server-side and are never exposed in this interface.</p></article>
+        <div class="settings-grid settings-grid-strong">
+          <article class="panel"><h3>Model roles</h3><div class="settings-rows"><div><span>Target model</span><b id="target-model">Loading configuration…</b></div><div><span>Auditor</span><b id="auditor-model">Loading configuration…</b></div><div><span>Judge</span><b id="judge-model">Loading configuration…</b></div><div><span>Understanding</span><b id="understanding-model">Loading configuration…</b></div></div></article>
+          <article class="panel"><h3>API connection</h3><div class="connection-status"><span class="connection-dot"></span><div><small>OpenAI API</small><strong id="api-key-status">Checking secure configuration…</strong></div></div><p class="muted-copy">The API key is read only from the local <code>.env</code> file and remains server-side. It is never exposed in the browser or committed to GitHub.</p></article>
+          <article class="panel"><h3>Token budget</h3><div class="budget-hero"><strong>10M</strong><span>configured project token ceiling</span></div><p class="muted-copy">The granted token allocation is tracked through ThreadAware’s project-side budget controls. The interface does not assume the provider exposes a live remaining-grant balance.</p></article>
         </div>
       </section>
     </main>
