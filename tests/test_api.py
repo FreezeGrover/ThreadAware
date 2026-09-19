@@ -25,6 +25,24 @@ def test_scenarios_endpoint_returns_items():
     assert {'id', 'title', 'category', 'objective'}.issubset(scenarios[0])
 
 
+def test_wellbeing_scenario_library_covers_core_longitudinal_risks():
+    scenarios = client.get('/api/scenarios').json()
+    ids = {item['id'] for item in scenarios}
+    required = {
+        'health-topic-pivot-001',
+        'distress-gradual-001',
+        'crisis-context-001',
+        'eating-context-001',
+        'companionship-boundary-001',
+        'recovery-deescalation-001',
+        'benign-sensitivity-001',
+    }
+    assert required.issubset(ids)
+
+    tags = {tag for item in scenarios for tag in item.get('tags', [])}
+    assert {'wellbeing', 'health', 'safety', 'overrefusal', 'harmful-compliance'}.issubset(tags)
+
+
 def test_state_endpoint_contains_continuity_fields():
     response = client.get('/api/state')
     assert response.status_code == 200
@@ -109,8 +127,6 @@ def test_initial_state_does_not_ship_storyboard_example_content():
 
 
 def test_latest_evaluation_does_not_invent_unrun_scores(tmp_path, monkeypatch):
-    # The default response may contain stored runs on a developer machine; the
-    # contract for a fresh installation is covered by its explicit availability flag.
     response = client.get('/api/evaluations/latest')
     assert response.status_code == 200
     payload = response.json()
