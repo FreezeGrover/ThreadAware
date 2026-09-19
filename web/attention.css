@@ -1,0 +1,91 @@
+/* Final presentation polish layered over the stable ThreadAware UI. */
+:root{
+  --ta-navy:#172746;
+  --ta-blue:#4f8df7;
+  --ta-mint:#55d2b2;
+  --ta-lilac:#9a7cf0;
+  --ta-peach:#f2ba91;
+}
+
+body{min-width:0}
+.workspace{position:relative}
+.workspace:before{content:"";position:fixed;inset:0 0 auto var(--sidebar-w);height:260px;pointer-events:none;background:radial-gradient(circle at 34% 5%,rgba(79,141,247,.07),transparent 34%),radial-gradient(circle at 74% 8%,rgba(242,186,145,.08),transparent 32%);z-index:0}
+.workspace>*{position:relative;z-index:1}
+
+.chat-heading{margin-top:4px}
+.chat-heading h1{font-family:Georgia,"Times New Roman",serif;font-size:30px;font-weight:500;letter-spacing:-.045em;color:#132441}
+.chat-heading p{font-size:12px;margin-top:5px;max-width:600px}
+
+.chat-empty{min-height:430px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:36px 54px 48px;position:relative;overflow:hidden;border:1px solid rgba(226,232,240,.9);border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(249,251,255,.94) 58%,rgba(251,246,241,.94));box-shadow:0 20px 70px rgba(36,53,84,.07)}
+.chat-empty:before{content:"";position:absolute;width:360px;height:360px;border-radius:50%;right:-130px;top:-165px;border:1px solid rgba(79,141,247,.15);box-shadow:0 0 0 34px rgba(79,141,247,.025),0 0 0 68px rgba(154,124,240,.018)}
+.chat-empty:after{content:"";position:absolute;width:210px;height:150px;right:28px;bottom:-22px;background:linear-gradient(145deg,rgba(187,198,213,.36),rgba(242,205,177,.46));clip-path:polygon(0 100%,36% 35%,53% 62%,70% 18%,100% 100%);filter:blur(.1px)}
+.empty-mark{width:58px;height:42px;margin:0 0 14px;position:relative}
+.empty-mark span{position:absolute;left:7px;top:11px;width:36px;height:15px;border:3px solid #aa8569;border-radius:50%;transform:rotate(34deg);opacity:.85}
+.empty-mark span:last-child{transform:rotate(-34deg);border-color:#8d96aa #c8ad97 #ab8265 #939aaa}
+.chat-empty h2{font-family:Georgia,"Times New Roman",serif;font-size:31px;font-weight:500;letter-spacing:-.04em;margin:0;color:#152642;max-width:520px}
+.chat-empty>p{font-size:13px;line-height:1.65;color:#687891;max-width:570px;margin:10px 0 20px}
+.hero-kicker{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:#eef6ff;color:#3f73bb;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px}
+.hero-kicker i{width:7px;height:7px;border-radius:50%;background:var(--ta-mint);box-shadow:0 0 0 4px rgba(85,210,178,.15);animation:taPulse 2.1s infinite}
+@keyframes taPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.76);opacity:.55}}
+.capability-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.capability-pills span{border:1px solid #e4e9f1;background:rgba(255,255,255,.9);border-radius:999px;padding:8px 11px;font-size:9px;color:#53637d;box-shadow:0 5px 18px rgba(34,49,78,.035)}
+.hero-prompts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;width:min(650px,100%);position:relative;z-index:2}
+.hero-prompt{appearance:none;border:1px solid #e5eaf2;background:rgba(255,255,255,.92);border-radius:14px;padding:12px 13px;text-align:left;color:#34445f;cursor:pointer;transition:.2s ease;min-height:62px}
+.hero-prompt:hover{transform:translateY(-2px);border-color:#cbd8ec;box-shadow:0 10px 22px rgba(36,57,91,.08)}
+.hero-prompt b{display:block;font-size:10px;color:#1f3152;margin-bottom:4px}
+.hero-prompt span{font-size:9px;line-height:1.45;color:#7a8799}
+
+.composer-wrap{backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(255,255,255,0),rgba(255,255,255,.92) 20%,rgba(255,255,255,.98));padding-top:18px}
+.composer{height:56px;border-color:#d7e1ef;box-shadow:0 12px 34px rgba(30,46,73,.09),0 0 0 4px rgba(255,255,255,.85)}
+.composer:focus-within{border-color:#9cbcf3;box-shadow:0 12px 34px rgba(30,46,73,.09),0 0 0 4px rgba(79,141,247,.08)}
+.composer input{font-size:12px}
+.send-button{width:42px;height:42px;background:linear-gradient(145deg,#20365f,#132443);box-shadow:0 8px 18px rgba(19,36,67,.2);transition:.18s ease}
+.send-button:hover{transform:translateY(-1px) scale(1.02)}
+.quick-actions button{transition:.18s ease}
+.quick-actions button:hover{border-color:#cad6e8;transform:translateY(-1px);background:#fbfdff}
+
+.chat-rail{padding-left:14px}
+.chat-rail .rail-card{box-shadow:0 10px 28px rgba(42,56,91,.045)}
+.continuity-rail{position:relative;overflow:hidden}
+.continuity-rail:after{content:"LIVE CONTEXT";position:absolute;right:-22px;top:28px;transform:rotate(90deg);font-size:6px;letter-spacing:.24em;color:#bcc7d5}
+.sync{display:inline-flex;align-items:center;gap:4px;padding:4px 7px;background:#eefaf6;border-radius:999px}
+.scenic-card{box-shadow:0 14px 32px rgba(81,65,54,.07)}
+
+.nav-item{transition:.18s ease}
+.nav-item:hover{transform:translateX(2px)}
+.mode-badge{box-shadow:0 4px 12px rgba(23,39,70,.05)}
+
+@media(max-width:1180px){
+  :root{--sidebar-w:190px}
+  #chat-view.active{grid-template-columns:minmax(0,1fr) 300px}
+  .composer-wrap{left:214px;right:344px}
+  .hero-prompts{grid-template-columns:1fr}
+  .chat-empty{padding:32px 38px;min-height:470px}
+  .chat-empty:after{opacity:.55}
+}
+@media(max-width:900px){
+  .app-shell{grid-template-columns:74px 1fr}
+  .sidebar{padding-inline:9px}
+  .brand-name,.brand-tagline,.nav-item span:last-child,.sidebar-quote,.sidebar-art{display:none}
+  .brand-mark{transform:scale(.72);margin-left:-3px}
+  .nav-item{justify-content:center;padding:10px}
+  .workspace:before{left:74px}
+  #chat-view.active{display:block}
+  .chat-rail{grid-template-columns:repeat(2,1fr);padding:12px 0 125px}
+  .scenic-card{display:none}
+  .composer-wrap{left:98px;right:24px}
+  .four-cols,.score-grid,.insight-kpis{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:640px){
+  .workspace{padding:12px 14px 24px}
+  .top-actions .icon-button,.profile-button span:nth-child(2){display:none}
+  .profile-button{min-width:auto;padding-right:8px}
+  .chat-empty{padding:28px 22px;min-height:500px}
+  .chat-empty h2{font-size:27px}
+  .hero-prompts{grid-template-columns:1fr}
+  .chat-rail{grid-template-columns:1fr}
+  .composer-wrap{left:88px;right:14px}
+  .quick-actions{overflow-x:auto;padding-bottom:4px}
+  .quick-actions button{white-space:nowrap}
+  .four-cols,.score-grid,.evaluation-detail-grid,.validation-grid,.validation-detail-grid,.insight-kpis,.insights-grid,.continuity-grid,.settings-grid{grid-template-columns:1fr}
+}
