@@ -25,7 +25,7 @@ function switchView(name){navItems.forEach(n=>n.classList.toggle('active',n.data
 function prepareAwarenessRail(){
   const rail=document.querySelector('.continuity-rail');if(!rail)return;
   const title=rail.querySelector('.rail-title b');if(title)title.textContent="What I’m noticing";
-  const sync=rail.querySelector('.sync');if(sync)sync.textContent='↝ Following along';
+  const sync=rail.querySelector('.sync');if(sync)sync.style.display='none';
   const list=rail.querySelector('.mini-timeline');
   if(list&&!list.dataset.awarenessReady){list.dataset.awarenessReady='1';list.innerHTML='<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As the conversation moves, I’ll quietly notice what changes and what stays important.</span></div>';}
 }
@@ -33,12 +33,12 @@ function prepareAwarenessRail(){
 function noticeTone(kind,importance){if(importance==='high'||kind==='sensitivity')return'orange';if(['return','possible-interpretations','open-question'].includes(kind))return'purple';if(['priority-change','goal-change','constraint'].includes(kind))return'blue';return'mint';}
 function addAwarenessNote(title,text,tone='mint'){
   prepareAwarenessRail();
-  const list=document.querySelector('.continuity-rail .mini-timeline');if(!list||!title||!text)return;
+  const list=document.querySelector('.continuity-rail .mini-timeline');if(!list||!text)return;
   list.querySelector('.awareness-empty')?.remove();
   const item=document.createElement('div');item.className=`awareness-note ${tone}`;
-  item.innerHTML=`<span class="awareness-dot"></span><div><small>${escapeHTML(title)}</small><strong>${escapeHTML(text)}</strong></div>`;
+  item.innerHTML=`<span class="awareness-dot"></span><div><small>${escapeHTML(title||'')}</small><strong>${escapeHTML(text)}</strong></div>`;
   list.appendChild(item);
-  item.scrollIntoView({behavior:'smooth',block:'nearest'});
+  list.scrollTop=list.scrollHeight;
 }
 
 function renderState(state){if(!state)return;
@@ -88,15 +88,45 @@ document.getElementById('send-button')?.addEventListener('click',sendChat);docum
 const actionPrompts={clarify:'Before answering, check whether there is more than one reasonable interpretation. Ask one concise clarification only if choosing between them would materially change the answer.',summarize:'Please summarize the conversation so far, including my current goal, constraints, changes, and any unresolved questions.',consistency:'Please check whether the conversation and your latest response remain consistent with what I have told you.',alternatives:'Please identify the materially plausible interpretations without inventing details.'};
 document.querySelectorAll('[data-chat-action]').forEach(button=>button.addEventListener('click',()=>{const input=document.getElementById('chat-input');if(!input)return;if(!collectMessages().length){showToast('Start a conversation first.');input.focus();return;}input.value=actionPrompts[button.dataset.chatAction]||'';sendChat();}));
 
-/* The main chat renderer is the single authoritative noticing path.
-   The backend generates the wording from the actual conversation. Nothing here contains
-   canned noticing responses or hidden chain-of-thought. We only display the concise,
-   user-safe observations returned in understanding.noticing. */
-function applyUnderstanding(u){if(!u)return;prepareAwarenessRail();const shift=u.topic_shift;const interp=u.interpretation;const readings=interp?.interpretations||interp?.plausible_interpretations||[];const topic=u.active_topic||shift?.new_topic;const notices=Array.isArray(u.noticing)?u.noticing:[];
-  if(topic){const topicEl=document.getElementById('summary-topic');if(topicEl)topicEl.textContent=topic;const status=document.getElementById('summary-status');if(status)status.textContent='● Tracking';}
-  notices.forEach(event=>addAwarenessNote(event.title,event.note,noticeTone(event.kind,event.importance)));
+function conversationEvents(u){
+  if(!u)return[];
+  const notices=Array.isArray(u.noticing)?u.noticing.filter(e=>e&&e.note):[];
+  if(notices.length)return notices;
 
-  const timeline=document.getElementById('continuity-timeline');if(timeline&&(shift||interp)){timeline.querySelector('.empty-state')?.remove();const blocks=[];if(readings.length>1)blocks.push(`<div><span class="timeline-dot purple"></span><b>Possible interpretations <small>${timeNow()}</small></b><p>${escapeHTML(readings.length)} plausible readings retained.</p></div>`);if(shift?.shifted)blocks.push(`<div><span class="timeline-dot orange"></span><b>${shift.relation==='returning'?'Earlier topic revisited':'Conversation direction changed'} <small>${timeNow()}</small></b><p>${escapeHTML(shift.acknowledgement||'The focus of the conversation changed.')}</p></div>`);if(!blocks.length&&topic)blocks.push(`<div><span class="timeline-dot mint"></span><b>Context updated <small>${timeNow()}</small></b><p>Active topic: ${escapeHTML(topic)}</p></div>`);timeline.insertAdjacentHTML('beforeend',blocks.join(''));}
+  const shift=u.topic_shift;
+  const interp=u.interpretation;
+  const readings=interp?.interpretations||interp?.plausible_interpretations||[];
+  const topic=u.active_topic||shift?.new_topic;
+  const events=[];
+
+  if(readings.length>1&&interp?.reason){events.push({kind:'possible-interpretations',title:'Possible interpretations',note:interp.reason,importance:'normal'});}
+  if(shift?.shifted&&shift?.acknowledgement){events.push({kind:shift.relation==='returning'?'return':'topic-shift',title:shift.relation==='returning'?'Earlier thread returned':'Conversation changed',note:shift.acknowledgement,importance:'normal'});}
+  if(!events.length&&topic){events.push({kind:'connection',title:'Context',note:`Active topic: ${topic}`,importance:'quiet'});}
+  return events;
+}
+
+function renderConversationEvents(events){
+  const timeline=document.getElementById('continuity-timeline');
+  if(timeline&&events.length)timeline.querySelector('.empty-state')?.remove();
+
+  for(const event of events){
+    const tone=noticeTone(event.kind,event.importance);
+    addAwarenessNote(event.title,event.note,tone);
+    if(timeline){
+      const dot=tone==='orange'?'orange':tone==='purple'?'purple':tone==='blue'?'blue':'mint';
+      timeline.insertAdjacentHTML('beforeend',`<div><span class="timeline-dot ${dot}"></span><b>${escapeHTML(event.title||'Conversation update')} <small>${timeNow()}</small></b><p>${escapeHTML(event.note)}</p></div>`);
+    }
+  }
+}
+
+/* One source of truth: both the Continuity timeline and the right-side panel consume
+   the exact same conversation-event objects. If one can display an event, so can the other. */
+function applyUnderstanding(u){
+  if(!u)return;
+  prepareAwarenessRail();
+  const topic=u.active_topic||u.topic_shift?.new_topic;
+  if(topic){const topicEl=document.getElementById('summary-topic');if(topicEl)topicEl.textContent=topic;const status=document.getElementById('summary-status');if(status)status.textContent='● Tracking';}
+  renderConversationEvents(conversationEvents(u));
 }
 window.applyUnderstanding=applyUnderstanding;
 window.addAwarenessNote=addAwarenessNote;
