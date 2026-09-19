@@ -11,17 +11,20 @@ from pydantic import BaseModel
 
 from threadaware.common.models import Turn
 from threadaware.continuity.engine import ContinuityEngine
+from threadaware.evaluations.batch import BatchRunner
 from threadaware.evaluations.runner import EvaluationRunner
 from threadaware.evaluations.scoring import aggregate_pass
+from threadaware.insights.analysis import InsightEngine
 from threadaware.providers.openai_provider import OpenAIProvider
 from threadaware.scenarios.library import SCENARIOS
+from threadaware.storage.runs import RunStore
 from threadaware.validation.agreement import percent_agreement
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 
-app = FastAPI(title="ThreadAware API", version="0.2.0")
+app = FastAPI(title="ThreadAware API", version="0.3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,6 +42,10 @@ engine.apply_update(kind="preference", value="Slower pace")
 engine.apply_update(kind="question", value="Should the remote-work mornings be grouped or split?")
 engine.set_sensitivity("low")
 
+store = RunStore()
+insights = InsightEngine(store=store)
+batches = BatchRunner(store=store)
+
 DEMO_EVALUATION = aggregate_pass(
     helpfulness=0.91,
     appropriateness=0.94,
@@ -53,6 +60,13 @@ DEMO_EVALUATION = aggregate_pass(
 
 class RunRequest(BaseModel):
     scenario_id: str
+    live: bool = False
+    max_turns: int | None = None
+
+
+class BatchRequest(BaseModel):
+    scenario_id: str
+    repeats: int = 3
     live: bool = False
     max_turns: int | None = None
 
@@ -78,6 +92,7 @@ def health() -> dict:
         "mode": "live" if live_configured() else "demo",
         "provider": "openai" if live_configured() else None,
         "pipeline": "auditor-target-continuity-judge",
+        "storage": str(store.path),
     }
 
 
@@ -93,11 +108,44 @@ def continuity_state() -> dict:
 
 @app.get("/api/evaluations/latest")
 def latest_evaluation() -> dict:
+    runs = store.list_runs(limit=1)
+    if runs:
+        payload = store.get(runs[0]["id"])
+        if payload:
+            evaluation = dict(payload["evaluation"])
+            evaluation["mode"] = payload["mode"]
+            evaluation["harmful_compliance_rate"] = float(evaluation.get("harmful_compliance", False))
+            evaluation["overrefusal_rate"] = float(evaluation.get("overrefusal", False))
+            return evaluation
+
     data = DEMO_EVALUATION.model_dump()
     data["mode"] = "demo"
     data["harmful_compliance_rate"] = 0.021
     data["overrefusal_rate"] = 0.048
     return data
+
+
+@app.get("/api/evaluations/runs")
+def list_runs(limit: int = 50, scenario_id: str | None = None) -> list[dict]:
+    return store.list_runs(limit=max(1, min(limit, 200)), scenario_id=scenario_id)
+
+
+@app.get("/api/evaluations/runs/{run_id}")
+def get_run(run_id: str) -> dict:
+    payload = store.get(run_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return payload
+
+
+@app.get("/api/insights")
+def aggregate_insights() -> dict:
+    return insights.generate()
+
+
+@app.get("/api/models/comparison")
+def model_comparison() -> list[dict]:
+    return store.model_comparison()
 
 
 @app.get("/api/validation")
@@ -141,7 +189,37 @@ def run_evaluation(payload: RunRequest) -> dict:
         )
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return result.model_dump()
+
+    data = result.model_dump()
+    run_id = store.save(
+        data,
+        target_model=os.getenv("THREADAWARE_TARGET_MODEL") if payload.live else None,
+        auditor_model=os.getenv("THREADAWARE_AUDITOR_MODEL") if payload.live else None,
+        judge_model=os.getenv("THREADAWARE_JUDGE_MODEL") if payload.live else None,
+    )
+    data["run_id"] = run_id
+    return data
+
+
+@app.post("/api/evaluations/batch")
+def run_batch(payload: BatchRequest) -> dict:
+    if payload.live and not live_configured():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Live mode requires OPENAI_API_KEY, THREADAWARE_TARGET_MODEL, "
+                "THREADAWARE_AUDITOR_MODEL and THREADAWARE_JUDGE_MODEL."
+            ),
+        )
+    try:
+        return batches.run_repeated(
+            scenario_id=payload.scenario_id,
+            repeats=payload.repeats,
+            live=payload.live,
+            max_turns=payload.max_turns,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/chat")
