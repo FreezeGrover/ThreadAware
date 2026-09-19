@@ -15,6 +15,7 @@ from threadaware.evaluations.batch import BatchRunner
 from threadaware.evaluations.runner import EvaluationRunner
 from threadaware.evaluations.scoring import aggregate_pass
 from threadaware.insights.analysis import InsightEngine
+from threadaware.memory.understanding import ConversationUnderstandingEngine
 from threadaware.providers.openai_provider import OpenAIProvider
 from threadaware.scenarios.library import SCENARIOS
 from threadaware.storage.runs import RunStore
@@ -24,7 +25,7 @@ from threadaware.validation.agreement import percent_agreement
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 
-app = FastAPI(title="ThreadAware API", version="0.3.0")
+app = FastAPI(title="ThreadAware API", version="0.4.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,6 +46,7 @@ engine.set_sensitivity("low")
 store = RunStore()
 insights = InsightEngine(store=store)
 batches = BatchRunner(store=store)
+understanding = ConversationUnderstandingEngine()
 
 DEMO_EVALUATION = aggregate_pass(
     helpfulness=0.91,
@@ -92,6 +94,7 @@ def health() -> dict:
         "mode": "live" if live_configured() else "demo",
         "provider": "openai" if live_configured() else None,
         "pipeline": "auditor-target-continuity-judge",
+        "conversation_understanding": "interpretations-memory-topic-shifts",
         "storage": str(store.path),
     }
 
@@ -104,6 +107,29 @@ def list_scenarios() -> list[dict]:
 @app.get("/api/state")
 def continuity_state() -> dict:
     return engine.snapshot().model_dump()
+
+
+@app.get("/api/memory")
+def memory_state() -> dict:
+    return {
+        "active_topic": understanding.active_topic,
+        "items": [item.model_dump() for item in understanding.memory.snapshot()],
+    }
+
+
+@app.post("/api/understanding")
+def analyze_conversation(payload: ChatRequest) -> dict:
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="At least one message is required")
+
+    live = bool(os.getenv("OPENAI_API_KEY") and os.getenv("THREADAWARE_JUDGE_MODEL"))
+    if live:
+        provider = OpenAIProvider()
+        understanding.provider = provider
+        understanding.model = os.environ["THREADAWARE_JUDGE_MODEL"]
+
+    result = understanding.analyze(turns=payload.messages, live=live)
+    return result.model_dump()
 
 
 @app.get("/api/evaluations/latest")
@@ -224,12 +250,49 @@ def run_batch(payload: BatchRequest) -> dict:
 
 @app.post("/api/chat")
 def chat(payload: ChatRequest) -> dict:
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="At least one message is required")
     if not os.getenv("OPENAI_API_KEY") or not os.getenv("THREADAWARE_TARGET_MODEL"):
         raise HTTPException(status_code=400, detail="Live OpenAI mode is not configured.")
-    model = payload.model or os.environ["THREADAWARE_TARGET_MODEL"]
+
     provider = OpenAIProvider()
-    reply = provider.complete(model=model, messages=payload.messages, max_output_tokens=1200)
-    return {"model": model, "reply": reply}
+    model = payload.model or os.environ["THREADAWARE_TARGET_MODEL"]
+    understanding.provider = provider
+    understanding.model = os.getenv("THREADAWARE_JUDGE_MODEL") or model
+
+    interpretation = understanding.analyze(turns=payload.messages, live=True)
+
+    if interpretation.interpretation.clarification_needed:
+        return {
+            "model": model,
+            "reply": interpretation.interpretation.clarification_question,
+            "clarification_needed": True,
+            "understanding": interpretation.model_dump(),
+        }
+
+    memory_context = [item.model_dump() for item in understanding.memory.active()]
+    system_parts = [
+        "Use the full conversation and relevant conversation memory. Do not invent missing facts.",
+        "If later information updates an earlier topic, prefer the newer information while preserving still-relevant earlier context.",
+    ]
+    if interpretation.topic_shift.shifted and interpretation.topic_shift.acknowledgement:
+        system_parts.append(
+            "The user has meaningfully shifted or returned to a topic. Naturally acknowledge this awareness in one brief sentence when useful: "
+            + interpretation.topic_shift.acknowledgement
+        )
+    system_parts.append(f"Relevant conversation memory: {memory_context}")
+
+    reply = provider.complete(
+        model=model,
+        messages=[Turn(role="system", content="\n".join(system_parts)), *payload.messages],
+        max_output_tokens=1200,
+    )
+    return {
+        "model": model,
+        "reply": reply,
+        "clarification_needed": False,
+        "understanding": interpretation.model_dump(),
+    }
 
 
 if WEB_DIR.exists():
