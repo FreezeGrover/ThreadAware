@@ -1,7 +1,6 @@
 (() => {
   const WORKSPACE_KEY = 'threadaware.workspace.id';
   const TRANSCRIPT_PREFIX = 'threadaware.transcript.';
-  const NOTICE_PREFIX = 'threadaware.notices.';
 
   function newId() {
     if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -19,7 +18,6 @@
 
   let workspaceId = getWorkspaceId();
   const transcriptKey = () => `${TRANSCRIPT_PREFIX}${workspaceId}`;
-  const noticesKey = () => `${NOTICE_PREFIX}${workspaceId}`;
 
   function readJSON(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || '') || fallback; }
@@ -30,74 +28,6 @@
     if (Array.isArray(messages)) localStorage.setItem(transcriptKey(), JSON.stringify(messages));
   }
 
-  function saveNotices(events) {
-    if (!Array.isArray(events) || !events.length) return;
-    const existing = readJSON(noticesKey(), []);
-    for (const event of events) {
-      if (event?.title && event?.note) existing.push(event);
-    }
-    localStorage.setItem(noticesKey(), JSON.stringify(existing));
-  }
-
-  function escapeHTML(value) {
-    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  }
-
-  function toneFor(kind, importance) {
-    if (importance === 'high' || kind === 'sensitivity') return 'orange';
-    if (['return','possible-interpretations','open-question'].includes(kind)) return 'purple';
-    if (['priority-change','goal-change','constraint'].includes(kind)) return 'blue';
-    return 'mint';
-  }
-
-  function awarenessElements() {
-    const rail = document.querySelector('.continuity-rail');
-    const list = rail?.querySelector('.mini-timeline');
-    if (!rail || !list) return null;
-    const title = rail.querySelector('.rail-title b');
-    if (title) title.textContent = 'What I’m noticing';
-    const sync = rail.querySelector('.sync');
-    if (sync) sync.textContent = '↝ Following along';
-    list.dataset.awarenessReady = '1';
-    return {rail, list};
-  }
-
-  function appendNotice(event) {
-    if (!event?.title || !event?.note) return;
-    const parts = awarenessElements();
-    if (!parts) return;
-    const {list} = parts;
-    list.querySelector('.awareness-empty')?.remove();
-    const item = document.createElement('div');
-    item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
-    item.innerHTML = `<span class="awareness-dot"></span><div><small>${escapeHTML(event.title)}</small><strong>${escapeHTML(event.note)}</strong></div>`;
-    list.appendChild(item);
-    list.scrollTop = list.scrollHeight;
-  }
-
-  function rebuildNoticingPanel() {
-    const parts = awarenessElements();
-    if (!parts) return;
-    const {list} = parts;
-    const notices = readJSON(noticesKey(), []);
-    if (!notices.length) {
-      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As we talk, naturally generated observations about the conversation will appear here.</span></div>';
-      return;
-    }
-    list.innerHTML = '';
-    for (const event of notices) appendNotice(event);
-    list.scrollTop = list.scrollHeight;
-  }
-
-  function collectVisibleMessages() {
-    return [...document.querySelectorAll('#conversation-feed .chat-row:not(.thinking-row)')]
-      .map(row => ({
-        role: row.classList.contains('user-row') ? 'user' : 'assistant',
-        content: row.dataset.rawContent || row.querySelector('.rich-message')?.innerText || row.querySelector('.message-card p')?.innerText || ''
-      }))
-      .filter(message => message.content);
-  }
-
   function fallbackAppend(role, content) {
     const feed = document.getElementById('conversation-feed');
     if (!feed) return;
@@ -106,20 +36,18 @@
     row.className = `chat-row ${role === 'user' ? 'user-row' : 'assistant-row'}`;
     row.dataset.rawContent = String(content ?? '');
     const avatar = role === 'user' ? '<div class="message-avatar">U</div>' : '<div class="assistant-avatar"><span></span><span></span></div>';
-    const safe = escapeHTML(content);
+    const safe = String(content ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     row.innerHTML = `${avatar}<div class="message-card ${role === 'assistant' ? 'assistant-card' : ''}"><div class="message-meta"><b>${role === 'user' ? 'You' : 'ThreadAware'}</b></div><p>${safe.replace(/\n/g,'<br>')}</p></div>`;
     feed.appendChild(row);
   }
 
-  function restoreWorkspace() {
+  function restoreTranscript() {
     const messages = readJSON(transcriptKey(), []);
-    if (messages.length && !document.querySelector('#conversation-feed .chat-row')) {
-      for (const message of messages) {
-        if (typeof window.appendMessage === 'function') window.appendMessage(message.role, message.content);
-        else fallbackAppend(message.role, message.content);
-      }
+    if (!messages.length || document.querySelector('#conversation-feed .chat-row')) return;
+    for (const message of messages) {
+      if (typeof window.appendMessage === 'function') window.appendMessage(message.role, message.content);
+      else fallbackAppend(message.role, message.content);
     }
-    rebuildNoticingPanel();
   }
 
   function installFreshStart() {
@@ -130,41 +58,38 @@
     const button = document.createElement('button');
     button.className = 'memory-clear-button';
     button.textContent = 'Fresh start';
-    button.title = 'Clear this browser workspace’s conversation and ThreadAware memory';
-    Object.assign(button.style, {
-      marginLeft: 'auto', border: '1px solid rgba(25,42,70,.15)', background: 'rgba(255,255,255,.82)',
-      borderRadius: '999px', padding: '6px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer'
-    });
+    button.title = 'Clear this browser workspace and begin a new conversation';
 
     button.addEventListener('click', async () => {
-      const ok = window.confirm('Start fresh? This clears the conversation and ThreadAware memory for this browser workspace only.');
+      const ok = window.confirm('Start fresh? This clears the conversation and memory for this browser workspace only.');
       if (!ok) return;
       const oldId = workspaceId;
       try {
         await fetch('/api/memory/clear', {
-          method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({workspace_id: oldId})
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({workspace_id: oldId})
         });
       } catch (_) {}
       localStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
-      localStorage.removeItem(`${NOTICE_PREFIX}${oldId}`);
       workspaceId = newId();
       localStorage.setItem(WORKSPACE_KEY, workspaceId);
       window.location.reload();
     });
+
     title.appendChild(button);
   }
 
-  /* Anonymous browser workspace isolation.
-     No name is requested. Each browser gets a random workspace ID so one person's
-     conversation memory cannot be mixed with another person's. */
-  const previousFetch = window.fetch.bind(window);
+  /* Persist chat only. Noticing is rendered exclusively by app.js so there is no
+     competing renderer, duplicate event stream, timestamp layer, or fetch race. */
+  const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
     const method = String(init?.method || 'GET').toUpperCase();
     let requestInit = init;
     let outgoingMessages = null;
 
-    if ((url.includes('/api/chat') || url.includes('/api/understanding')) && method === 'POST' && init?.body) {
+    if (url.includes('/api/chat') && method === 'POST' && init?.body) {
       try {
         const body = JSON.parse(init.body);
         body.workspace_id = workspaceId;
@@ -173,76 +98,19 @@
       } catch (_) {}
     }
 
-    const response = await previousFetch(input, requestInit);
+    const response = await nativeFetch(input, requestInit);
+
     if (url.includes('/api/chat') && method === 'POST' && outgoingMessages) {
       try {
-        const copy = response.clone();
-        const data = await copy.json();
+        const data = await response.clone().json();
         if (data?.reply) saveTranscript([...outgoingMessages, {role:'assistant', content:data.reply}]);
       } catch (_) {}
     }
     return response;
   };
 
-  /* IMPORTANT: noticing is driven from completed turns in the visible conversation,
-     not from canned browser logic and not from the old app.js renderer.
-
-     PRODUCT-BEHAVIOR EXAMPLES ONLY — NEVER PREDETERMINED RESPONSES:
-     the understanding model may notice the spirit of things like a topic changing,
-     the user leaving a question unanswered, circling back to an old thread, becoming
-     curious about where the user is going, or another unexpected turn in direction.
-     In casual moments it may be playful or lightly funny; in sensitive moments it
-     should be calm. These examples describe behavior only. The actual wording must
-     always be freshly generated from the real conversation. */
-  let lastProcessedAssistantCount = 0;
-  let noticeBusy = false;
-
-  async function generateNoticeForVisibleConversation() {
-    if (noticeBusy) return;
-    const messages = collectVisibleMessages();
-    if (!messages.length || messages[messages.length - 1]?.role !== 'assistant') return;
-
-    const assistantCount = messages.filter(m => m.role === 'assistant').length;
-    if (assistantCount <= lastProcessedAssistantCount) return;
-
-    noticeBusy = true;
-    try {
-      const response = await previousFetch('/api/understanding', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({messages, workspace_id: workspaceId})
-      });
-      if (!response.ok) return;
-      const understanding = await response.json();
-      const events = Array.isArray(understanding?.noticing) ? understanding.noticing : [];
-      if (events.length) {
-        saveNotices(events);
-        for (const event of events) appendNotice(event);
-        lastProcessedAssistantCount = assistantCount;
-      }
-    } catch (_) {
-      // No canned fallback: if understanding fails, leave the panel untouched.
-    } finally {
-      noticeBusy = false;
-    }
-  }
-
-  function installConversationObserver() {
-    const feed = document.getElementById('conversation-feed');
-    if (!feed) return;
-    const restored = collectVisibleMessages();
-    lastProcessedAssistantCount = restored.filter(m => m.role === 'assistant').length;
-
-    const observer = new MutationObserver(() => {
-      clearTimeout(installConversationObserver.timer);
-      installConversationObserver.timer = setTimeout(generateNoticeForVisibleConversation, 120);
-    });
-    observer.observe(feed, {childList:true, subtree:false});
-  }
-
   setTimeout(() => {
     installFreshStart();
-    restoreWorkspace();
-    installConversationObserver();
+    restoreTranscript();
   }, 0);
 })();
