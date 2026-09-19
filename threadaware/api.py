@@ -9,8 +9,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from threadaware.common.models import ContinuityState, Turn
+from threadaware.common.models import Turn
 from threadaware.continuity.engine import ContinuityEngine
+from threadaware.evaluations.runner import EvaluationRunner
 from threadaware.evaluations.scoring import aggregate_pass
 from threadaware.providers.openai_provider import OpenAIProvider
 from threadaware.scenarios.library import SCENARIOS
@@ -20,7 +21,7 @@ from threadaware.validation.agreement import percent_agreement
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 
-app = FastAPI(title="ThreadAware API", version="0.1.0")
+app = FastAPI(title="ThreadAware API", version="0.2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,7 +54,7 @@ DEMO_EVALUATION = aggregate_pass(
 class RunRequest(BaseModel):
     scenario_id: str
     live: bool = False
-    opening_message: str | None = None
+    max_turns: int | None = None
 
 
 class ChatRequest(BaseModel):
@@ -62,7 +63,12 @@ class ChatRequest(BaseModel):
 
 
 def live_configured() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY") and os.getenv("THREADAWARE_TARGET_MODEL"))
+    return bool(
+        os.getenv("OPENAI_API_KEY")
+        and os.getenv("THREADAWARE_TARGET_MODEL")
+        and os.getenv("THREADAWARE_AUDITOR_MODEL")
+        and os.getenv("THREADAWARE_JUDGE_MODEL")
+    )
 
 
 @app.get("/api/health")
@@ -71,6 +77,7 @@ def health() -> dict:
         "status": "ready",
         "mode": "live" if live_configured() else "demo",
         "provider": "openai" if live_configured() else None,
+        "pipeline": "auditor-target-continuity-judge",
     }
 
 
@@ -115,39 +122,31 @@ def run_evaluation(payload: RunRequest) -> dict:
     if scenario is None:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    if payload.live:
-        if not live_configured():
-            raise HTTPException(
-                status_code=400,
-                detail="Live mode requires OPENAI_API_KEY and THREADAWARE_TARGET_MODEL.",
-            )
-        provider = OpenAIProvider()
-        model = os.environ["THREADAWARE_TARGET_MODEL"]
-        opening = payload.opening_message or scenario.opening_message
-        reply = provider.complete(
-            model=model,
-            messages=[Turn(role="user", content=opening)],
-            max_output_tokens=800,
+    if payload.live and not live_configured():
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Live mode requires OPENAI_API_KEY, THREADAWARE_TARGET_MODEL, "
+                "THREADAWARE_AUDITOR_MODEL and THREADAWARE_JUDGE_MODEL."
+            ),
         )
-        return {
-            "mode": "live",
-            "scenario": scenario.model_dump(),
-            "sample_response": reply,
-            "evaluation": DEMO_EVALUATION.model_dump(),
-            "note": "Live target response generated; automated judge wiring is the next implementation step.",
-        }
 
-    return {
-        "mode": "demo",
-        "scenario": scenario.model_dump(),
-        "continuity": engine.snapshot().model_dump(),
-        "evaluation": DEMO_EVALUATION.model_dump(),
-    }
+    provider = OpenAIProvider() if payload.live else None
+    runner = EvaluationRunner(provider=provider)
+    try:
+        result = runner.run(
+            scenario,
+            live=payload.live,
+            max_turns=payload.max_turns,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return result.model_dump()
 
 
 @app.post("/api/chat")
 def chat(payload: ChatRequest) -> dict:
-    if not live_configured():
+    if not os.getenv("OPENAI_API_KEY") or not os.getenv("THREADAWARE_TARGET_MODEL"):
         raise HTTPException(status_code=400, detail="Live OpenAI mode is not configured.")
     model = payload.model or os.environ["THREADAWARE_TARGET_MODEL"]
     provider = OpenAIProvider()
