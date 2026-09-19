@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -27,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 load_dotenv(ROOT / ".env", override=False)
 
-app = FastAPI(title="ThreadAware API", version="0.6.0")
+app = FastAPI(title="ThreadAware API", version="0.7.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,12 +37,31 @@ app.add_middleware(
 )
 
 engine = ContinuityEngine()
-
 store = RunStore()
 insights = InsightEngine(store=store)
 batches = BatchRunner(store=store)
-understanding = ConversationUnderstandingEngine()
 conversation = ConversationalIntelligence()
+
+# Each browser gets an anonymous workspace ID. This keeps one person's ThreadAware
+# memory separate from every other person's without requiring a name, login, or email.
+# The browser sends the workspace ID with chat requests. A judge therefore gets a fresh
+# independent memory automatically, while the same browser can resume its own thread.
+_understanding_workspaces: dict[str, ConversationUnderstandingEngine] = {}
+
+
+def _workspace_id(value: str | None) -> str:
+    value = (value or "default").strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value):
+        raise HTTPException(status_code=400, detail="Invalid workspace identifier")
+    return value
+
+
+def understanding_for(workspace_id: str | None) -> ConversationUnderstandingEngine:
+    key = _workspace_id(workspace_id)
+    if key not in _understanding_workspaces:
+        _understanding_workspaces[key] = ConversationUnderstandingEngine()
+    return _understanding_workspaces[key]
+
 
 class RunRequest(BaseModel):
     scenario_id: str
@@ -59,6 +79,11 @@ class BatchRequest(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[Turn]
     model: str | None = None
+    workspace_id: str | None = None
+
+
+class WorkspaceRequest(BaseModel):
+    workspace_id: str
 
 
 def model_config() -> dict[str, str | None]:
@@ -98,6 +123,7 @@ def health() -> dict:
         "pipeline": "auditor-target-continuity-understanding-judge",
         "conversation_understanding": "interpretations-memory-topic-shifts",
         "conversational_intelligence": "casual-project-mixed-routing",
+        "workspace_memory": "anonymous-browser-isolated",
         "storage": str(store.path),
         "data_directory": str(app_data_dir()),
         "exports_directory": str(exports_dir()),
@@ -118,11 +144,21 @@ def continuity_state() -> dict:
 
 
 @app.get("/api/memory")
-def memory_state() -> dict:
+def memory_state(workspace_id: str | None = None) -> dict:
+    understanding = understanding_for(workspace_id)
     return {
+        "workspace_id": _workspace_id(workspace_id),
         "active_topic": understanding.active_topic,
         "items": [item.model_dump() for item in understanding.memory.snapshot()],
     }
+
+
+@app.post("/api/memory/clear")
+def clear_memory(payload: WorkspaceRequest) -> dict:
+    key = _workspace_id(payload.workspace_id)
+    understanding = understanding_for(key)
+    understanding.clear()
+    return {"status": "cleared", "workspace_id": key}
 
 
 @app.post("/api/understanding")
@@ -130,6 +166,7 @@ def analyze_conversation(payload: ChatRequest) -> dict:
     if not payload.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
 
+    understanding = understanding_for(payload.workspace_id)
     understanding_model = os.getenv("THREADAWARE_UNDERSTANDING_MODEL")
     live = bool(os.getenv("OPENAI_API_KEY") and understanding_model)
     if live:
@@ -186,7 +223,6 @@ def model_comparison() -> list[dict]:
 
 @app.get("/api/validation")
 def validation_summary() -> dict:
-    """Expose validation architecture without presenting synthetic values as evidence."""
     return {
         "source": "demo-placeholder",
         "has_real_expert_evidence": False,
@@ -206,13 +242,7 @@ def run_evaluation(payload: RunRequest) -> dict:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
     if payload.live and not live_configured():
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Live evaluation requires OPENAI_API_KEY plus target, auditor, judge, "
-                "and understanding model configuration."
-            ),
-        )
+        raise HTTPException(status_code=400, detail="Live evaluation requires OPENAI_API_KEY plus target, auditor, judge, and understanding model configuration.")
 
     provider = OpenAIProvider() if payload.live else None
     runner = EvaluationRunner(provider=provider)
@@ -255,6 +285,7 @@ def chat(payload: ChatRequest) -> dict:
     if not payload.messages:
         raise HTTPException(status_code=400, detail="At least one message is required")
 
+    understanding = understanding_for(payload.workspace_id)
     intent = conversation.classify(payload.messages)
     live = chat_live_configured()
 
@@ -272,6 +303,7 @@ def chat(payload: ChatRequest) -> dict:
             "clarification_needed": interpretation.interpretation.clarification_needed,
             "conversation_mode": intent.mode,
             "intent_reason": intent.reason,
+            "workspace_id": _workspace_id(payload.workspace_id),
             "understanding": interpretation.model_dump(),
         }
 
@@ -289,6 +321,7 @@ def chat(payload: ChatRequest) -> dict:
             "reply": interpretation.interpretation.clarification_question,
             "clarification_needed": True,
             "conversation_mode": intent.mode,
+            "workspace_id": _workspace_id(payload.workspace_id),
             "understanding": interpretation.model_dump(),
         }
 
@@ -318,6 +351,7 @@ def chat(payload: ChatRequest) -> dict:
         "clarification_needed": False,
         "conversation_mode": intent.mode,
         "intent_reason": intent.reason,
+        "workspace_id": _workspace_id(payload.workspace_id),
         "understanding": interpretation.model_dump(),
     }
 
@@ -340,10 +374,7 @@ def assets(asset_path: str):
 
 
 def main() -> None:
-    # Backward-compatible programmatic entrypoint; the package console script points
-    # directly at threadaware.launcher:main.
     from threadaware.launcher import main as launch
-
     launch()
 
 
