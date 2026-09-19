@@ -25,7 +25,6 @@ class ConversationUnderstandingEngine:
         return self._analyze_demo(turns)
 
     def clear(self) -> None:
-        """Clear only this conversation workspace's understanding state."""
         self.memory = ConversationMemory()
         self.active_topic = None
 
@@ -45,16 +44,16 @@ class ConversationUnderstandingEngine:
             relation = "related" if previous_words & topic_words else "new"
             shifted = True
             acknowledgement = (
-                f"The conversation has moved from {previous} toward {topic}."
+                f"The conversation has moved toward {topic}."
                 if relation == "new"
-                else f"The focus has moved toward {topic}, while still connecting with what came before."
+                else f"The focus has shifted while still connecting with what came before."
             )
-            noticing.append({"kind": "topic-shift", "title": "Shift", "note": acknowledgement, "importance": "normal"})
+            noticing.append({"kind": "topic-shift", "title": "Current intent", "note": acknowledgement, "importance": "normal"})
         elif not previous:
             relation = "new"
-            noticing.append({"kind": "connection", "title": "Opening", "note": f"The conversation is beginning around {topic}.", "importance": "quiet"})
+            noticing.append({"kind": "connection", "title": "Current intent", "note": f"The conversation is beginning around {topic}.", "importance": "quiet"})
         else:
-            noticing.append({"kind": "connection", "title": "Continuing", "note": f"This continues the current thread around {topic}.", "importance": "quiet"})
+            noticing.append({"kind": "connection", "title": "Current intent", "note": f"The user is continuing around {topic}.", "importance": "quiet"})
 
         self.active_topic = topic
         memory_item = self.memory.upsert(
@@ -80,7 +79,7 @@ class ConversationUnderstandingEngine:
             clarification_needed = True
             clarification_question = f"When you say that, do you mean {first}, or {second}?"
             reason = "More than one plausible reading survives and choosing one could materially change the response."
-            noticing.append({"kind": "possible-interpretations", "title": "Possible readings", "note": "There is more than one reasonable way to read that, so choosing one without checking could change the answer.", "importance": "normal"})
+            noticing.append({"kind": "possible-interpretations", "title": "Needs clarification", "note": "There is more than one reasonable reading, so choosing one without checking could change the answer.", "importance": "normal"})
 
         payload = {
             "active_topic": topic,
@@ -128,42 +127,53 @@ class ConversationUnderstandingEngine:
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in turns)
         memories = [item.model_dump() for item in self.memory.active()]
 
-        # PRODUCT-BEHAVIOR EXAMPLES ONLY — NEVER PREDETERMINED RESPONSES.
-        # The noticing stream should feel like a perceptive person quietly following the
-        # conversation: aware of a change, a return, an unanswered thread, or simply the
-        # tone and direction of an ordinary turn. The wording must always be freshly
-        # generated from the actual conversation and must never rotate stock phrases.
         prompt = f"""You are ThreadAware's conversation-understanding layer.
 
-Analyze the latest user turn against the entire visible conversation and ThreadAware memory.
-Do not reveal hidden chain-of-thought. Create a short, user-safe observation about what matters in the conversation right now and what should remain in view.
+Analyze the latest user turn against the ENTIRE visible conversation and active ThreadAware memory.
+Do not reveal hidden chain-of-thought. Return only concise, user-safe conclusions about what the user is doing now and what still matters from earlier.
 
-Track carefully:
-1. The current topic and whether the user continued it, changed it, or returned to an earlier one.
-2. Goals, priorities, constraints, decisions, corrections, and details that modify earlier information.
-3. Changes in sensitivity, urgency, wellbeing, or risk.
-4. More than one reasonable interpretation when it genuinely matters. Describe these as possible interpretations or possible readings.
-5. Questions the assistant asked that the user did not answer. Keep them as open threads without nagging.
-6. Repeated or revisited ideas. Treat a return as a return, not as brand-new information.
-7. Connections between older threads and the current turn.
-8. Ordinary conversational movement too, including greetings, check-ins, jokes, small pivots, and continuations.
+The central principle is CONTINUITY, not simple topic-change detection.
+A new topic does not erase an unresolved important thread. In particular, wellbeing, health, safety, acute distress, medication, self-care, or risk-related information can remain important even when the user abruptly moves to something casual.
 
-NOTICING VOICE — THIS MATTERS A LOT:
-- Produce at least one noticing item for EVERY user turn, including a greeting or an ordinary continuation.
-- Write the note as if a warm, perceptive companion were quietly keeping the thread, not as a classifier, dashboard, event log, or analyst.
-- The note should usually be ONE natural sentence. Two short sentences are fine when genuinely useful.
-- Prefer ordinary conversational words. Never expose internal category names, taxonomies, labels, or phrases such as "casual greeting and wellbeing check-in", "bat ownership question", "topic A", or "topic B".
-- Do not mechanically narrate transitions as "We moved from X to Y". Describe the human meaning of the turn instead.
-- Do not repeatedly say that you are "keeping both threads in view", "keeping the earlier thread in mind", "following along", or equivalent stock phrases.
-- Do not begin notes or titles with filler interjections such as "Hmm", "Oh", "Interesting", "Aha", or "Well".
-- Do not use the same opening, sentence skeleton, or closing across adjacent notices. Read the previous conversation and vary naturally.
-- A greeting is not automatically a topic change. Treat greetings and check-ins lightly unless they genuinely alter the conversation.
-- Do not overstate tiny shifts. Sometimes the right observation is simply that the user is continuing, checking in, joking, or opening a new question.
-- You may be lightly playful in casual contexts, but never force humor and never use playful language for serious or sensitive moments.
-- Do not invent feelings, motives, or facts.
-- Never sound clinical, diagnostic, bureaucratic, or robotic.
-- Do not expose private reasoning steps. Show only the concise conclusion of what was noticed.
-- The title is metadata for the interface and is not shown prominently. Keep it neutral and very short (1–3 words). Put the natural language in the note.
+For every turn, distinguish:
+- CURRENT INTENT: what the user appears to want or do right now.
+- CARRIED-FORWARD THREADS: earlier matters that remain unresolved or materially relevant.
+- PRIORITY: whether any carried-forward wellbeing/safety issue deserves continued attention.
+
+WELLBEING / SAFETY CONTINUITY RULES:
+- If the user previously disclosed an unresolved health, wellbeing, or safety concern, do NOT silently drop it merely because they changed topics.
+- Keep such a concern active until the conversation provides reasonable evidence that it is resolved, no longer relevant, or superseded.
+- When the user pivots away from an unresolved wellbeing/safety concern, produce a separate noticing item with kind="sensitivity" and importance="high" or "normal" depending on seriousness.
+- That notice should say plainly what remains important, without alarming the user or hijacking the new topic.
+- Do not nag. The purpose is to preserve situational awareness, not force the conversation back.
+- If a safety-critical detail would materially change what the assistant should do next, make that importance visible.
+
+CURRENT-INTENT RULES:
+- Produce one noticing item that summarizes the user's present intent in plain language.
+- Do not copy the user's raw words as the title. For example, a message like "hiiii" should be summarized with a neutral label such as "Greeting" or "Check-in", not repeated verbatim.
+- A greeting is not automatically a topic shift.
+- If there is no concrete request yet, say that naturally rather than inventing one.
+
+OTHER THINGS TO TRACK:
+1. Goals, priorities, constraints, decisions, corrections, and details that modify earlier information.
+2. Unanswered assistant questions that still matter.
+3. Returns to earlier threads.
+4. More than one reasonable interpretation when it genuinely affects the answer. Call these possible interpretations or possible readings.
+5. Connections between current intent and older context.
+
+NOTICING VOICE:
+- Write like a warm, perceptive companion, not a classifier, event log, analyst, or clinical dashboard.
+- Use short human-readable titles such as "Greeting", "Current intent", "Health concern", "Open question", "Returning thread", or another natural label that fits the actual turn.
+- Notes should usually be one natural sentence; two short sentences only when useful.
+- Never expose internal category names or taxonomy phrases.
+- Do not mechanically say "we moved from X to Y".
+- Do not repeatedly use stock closings such as "keeping both threads in view".
+- Do not begin with filler such as "Hmm", "Oh", "Interesting", "Aha", or "Well".
+- Do not repeat the same sentence skeleton across adjacent turns.
+- Do not overstate tiny shifts.
+- Never sound clinical, bureaucratic, or robotic.
+- Do not invent feelings, motives, diagnoses, or facts.
+- Keep each note concise enough to scan quickly, ideally under 35 words.
 
 Return JSON only with this shape:
 {{
@@ -191,14 +201,13 @@ Return JSON only with this shape:
 }}
 
 Rules:
-- At least one noticing item every turn.
-- Add more than one only when two genuinely different things matter; do not split one thought into multiple cards.
-- If an earlier assistant question remains unanswered, preserve it only when it still matters naturally.
-- If the latest turn answers it, stop describing it as unanswered.
-- If an old topic returns, use relation="returning" internally, but phrase the note naturally rather than announcing a classification.
-- If a previous goal or priority changes, describe what changed in plain language.
-- If a new constraint appears, describe its practical effect rather than merely labeling it a constraint.
-- Keep each note concise enough to read at a glance, ideally under 35 words.
+- EVERY user turn must yield at least one noticing item summarizing current intent.
+- Add a separate carried-forward notice whenever an unresolved earlier thread remains important enough to affect future support.
+- Unresolved wellbeing/safety concerns should survive unrelated topic changes.
+- If the current turn genuinely resolves an earlier concern, stop carrying it forward.
+- Add more than two notices only when clearly necessary.
+- If the user returns to an old topic, use relation="returning" internally but phrase the note naturally.
+- If the latest turn answers an earlier open question, stop describing it as unanswered.
 
 Existing ThreadAware memory:
 {json.dumps(memories, indent=2)}
@@ -212,13 +221,10 @@ Full visible transcript:
         raw = self.provider.complete(
             model=self.model,
             messages=[Turn(role="user", content=prompt)],
-            max_output_tokens=1600,
+            max_output_tokens=1800,
         )
         data = self._parse_json(raw)
 
-        # Some live models can complete the structural analysis yet omit a notice on an
-        # ordinary turn. In that case a second, narrowly-scoped generative pass supplies
-        # the conversation-specific observation. Nothing is selected from canned text.
         if not data.get("noticing"):
             data["noticing"] = self._generate_live_noticing(
                 transcript=transcript,
@@ -246,25 +252,21 @@ Full visible transcript:
         analysis: dict[str, Any],
         memories: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """Generate at least one fresh, user-safe noticing event when the main pass omitted it."""
         prompt = f"""You are ThreadAware's noticing layer.
 
-The structural conversation analysis returned no noticing item. Write the missing observation for the latest user turn.
+The structural conversation analysis returned no noticing items. Generate the missing user-safe awareness trace now.
 
-You MUST return at least one event, even when the latest turn is only a greeting, check-in, joke, continuation, or ordinary question.
+You MUST return at least one event summarizing the latest user's CURRENT INTENT, even for a greeting, check-in, joke, continuation, or ordinary question.
+
+Also inspect the entire transcript and memory for unresolved wellbeing, health, safety, distress, medication, or risk-related threads. If one remains unresolved and could still matter, add a separate sensitivity notice so it is not lost just because the user changed topics.
 
 VOICE:
-- Write like a warm, perceptive companion quietly following the conversation.
-- Usually write one natural sentence, ideally under 35 words.
-- Use ordinary human language, never internal category names or taxonomy labels from the analysis.
-- Do not mechanically say "we moved from X to Y".
-- Do not use stock closings about "keeping both threads in view" or "keeping the earlier thread in mind".
-- Do not begin with "Hmm", "Oh", "Interesting", "Aha", or similar filler.
-- Do not reuse a sentence pattern merely because it worked on an earlier turn.
-- A greeting or check-in is not automatically a topic shift.
-- Do not invent motives, emotions, or facts.
+- Use a short natural title such as "Greeting", "Current intent", "Health concern", "Open question", or another human-readable label.
+- Do not copy raw user text as a title.
+- Usually write one natural sentence per notice, ideally under 35 words.
+- Do not use taxonomy labels, mechanical transition language, stock closings, or filler interjections.
+- Do not invent motives, emotions, diagnoses, or facts.
 - Do not expose hidden reasoning.
-- Keep the title neutral and very short; the note carries the natural wording.
 
 Return JSON only:
 {{
@@ -276,7 +278,7 @@ Return JSON only:
   }}]
 }}
 
-Existing analysis (use it for facts, but do not copy its category labels into the note):
+Existing analysis:
 {json.dumps(analysis, indent=2)}
 
 Existing ThreadAware memory:
@@ -290,7 +292,7 @@ Full visible transcript:
             raw = self.provider.complete(
                 model=self.model,
                 messages=[Turn(role="user", content=prompt)],
-                max_output_tokens=500,
+                max_output_tokens=650,
             )
             try:
                 payload = self._parse_json(raw)
@@ -308,7 +310,7 @@ Full visible transcript:
     def _coarse_topic(text: str) -> str:
         groups = {
             "travel planning": ["trip", "travel", "flight", "hotel", "japan", "city"],
-            "health and wellbeing": ["health", "sleep", "tired", "doctor", "pain", "stress"],
+            "health and wellbeing": ["health", "sleep", "tired", "doctor", "pain", "stress", "cough", "coughing", "medicine", "medication"],
             "work and projects": ["work", "project", "deadline", "github", "code", "app", "dashboard"],
             "relationships": ["relationship", "partner", "friend", "family"],
             "money and finance": ["money", "budget", "payment", "income", "cost"],
