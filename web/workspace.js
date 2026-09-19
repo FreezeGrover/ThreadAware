@@ -33,15 +33,48 @@
   function saveNotices(events) {
     if (!Array.isArray(events) || !events.length) return;
     const existing = readJSON(noticesKey(), []);
-    const seen = new Set(existing.map(x => `${x.kind || ''}|${x.title || ''}|${x.note || ''}`));
     for (const event of events) {
-      const key = `${event?.kind || ''}|${event?.title || ''}|${event?.note || ''}`;
-      if (event?.title && event?.note && !seen.has(key)) {
-        existing.push(event);
-        seen.add(key);
-      }
+      if (event?.title && event?.note) existing.push(event);
     }
     localStorage.setItem(noticesKey(), JSON.stringify(existing));
+  }
+
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function toneFor(kind, importance) {
+    if (importance === 'high' || kind === 'sensitivity') return 'orange';
+    if (['return','possible-interpretations','open-question'].includes(kind)) return 'purple';
+    if (['priority-change','goal-change','constraint'].includes(kind)) return 'blue';
+    return 'mint';
+  }
+
+  function rebuildNoticingPanel() {
+    const rail = document.querySelector('.continuity-rail');
+    const list = rail?.querySelector('.mini-timeline');
+    if (!rail || !list) return;
+
+    const title = rail.querySelector('.rail-title b');
+    if (title) title.textContent = 'What I’m noticing';
+    const sync = rail.querySelector('.sync');
+    if (sync) sync.textContent = '↝ Following along';
+
+    list.dataset.awarenessReady = '1';
+    const notices = readJSON(noticesKey(), []);
+    if (!notices.length) {
+      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As we talk, I’ll show what I notice about changes, returns, priorities, open threads, and important context.</span></div>';
+      return;
+    }
+
+    list.innerHTML = '';
+    notices.forEach(event => {
+      const item = document.createElement('div');
+      item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
+      item.innerHTML = `<span class="awareness-dot"></span><div><small>${escapeHTML(event.title)}</small><strong>${escapeHTML(event.note)}</strong></div>`;
+      list.appendChild(item);
+    });
+    list.scrollTop = list.scrollHeight;
   }
 
   function fallbackAppend(role, content) {
@@ -54,7 +87,7 @@
     const avatar = role === 'user'
       ? '<div class="message-avatar">U</div>'
       : '<div class="assistant-avatar"><span></span><span></span></div>';
-    const safe = String(content ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    const safe = escapeHTML(content);
     row.innerHTML = `${avatar}<div class="message-card ${role === 'assistant' ? 'assistant-card' : ''}"><div class="message-meta"><b>${role === 'user' ? 'You' : 'ThreadAware'}</b></div><p>${safe.replace(/\n/g,'<br>')}</p></div>`;
     feed.appendChild(row);
   }
@@ -67,11 +100,7 @@
         else fallbackAppend(message.role, message.content);
       }
     }
-
-    const notices = readJSON(noticesKey(), []);
-    if (notices.length && typeof window.applyUnderstanding === 'function') {
-      window.applyUnderstanding({noticing: notices});
-    }
+    rebuildNoticingPanel();
   }
 
   function installFreshStart() {
@@ -147,6 +176,7 @@
           saveTranscript([...outgoingMessages, {role: 'assistant', content: data.reply}]);
         }
         saveNotices(data?.understanding?.noticing || []);
+        setTimeout(rebuildNoticingPanel, 80);
       } catch (_) {}
     }
 
