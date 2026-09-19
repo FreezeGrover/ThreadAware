@@ -97,6 +97,65 @@ def test_chat_contract_always_returns_renderable_noticing_in_demo(monkeypatch):
     assert noticing[0]['note']
 
 
+def test_greeting_is_represented_as_user_intent_not_assistant_reply(monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    response = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': 'pytest-greeting-intent',
+            'messages': [{'role': 'user', 'content': 'hey how are you'}],
+        },
+    )
+    assert response.status_code == 200
+    noticing = response.json()['understanding']['noticing']
+    assert noticing[0]['title'] == 'Current intent'
+    assert 'greeting' in noticing[0]['note'].lower() or 'check-in' in noticing[0]['note'].lower()
+    assert 'hey' not in noticing[0]['note'].lower()
+
+
+def test_health_thread_survives_unrelated_pivot_and_stays_visible(monkeypatch):
+    """The exact health -> movie failure must not silently erase the health thread."""
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    workspace = 'pytest-health-pivot'
+
+    first = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': workspace,
+            'messages': [
+                {'role': 'user', 'content': 'hey how are you'},
+                {'role': 'assistant', 'content': 'Hey! How are you doing?'},
+                {'role': 'user', 'content': 'I have a cough'},
+            ],
+        },
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': workspace,
+            'messages': [
+                {'role': 'user', 'content': 'hey how are you'},
+                {'role': 'assistant', 'content': 'Hey! How are you doing?'},
+                {'role': 'user', 'content': 'I have a cough'},
+                {'role': 'assistant', 'content': 'How long have you had it, and are you short of breath?'},
+                {'role': 'user', 'content': 'I wanna watch a movie'},
+            ],
+        },
+    )
+    assert second.status_code == 200
+    understanding = second.json()['understanding']
+    wellbeing = understanding['wellbeing']
+    notices = understanding['noticing']
+
+    assert wellbeing['active'] is True
+    assert wellbeing['status'] != 'resolved'
+    assert any(item['kind'] == 'sensitivity' for item in notices)
+    assert any(item['kind'] == 'open-question' for item in notices)
+    assert any('movie' in item['note'].lower() for item in notices if item['kind'] == 'connection')
+
+
 def test_workspace_memories_are_isolated(monkeypatch):
     """A judge/browser workspace must never inherit another workspace's state."""
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)
