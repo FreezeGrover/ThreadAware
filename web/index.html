@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThreadAware</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span>
+        </div>
+        <div>
+          <strong>ThreadAware</strong>
+          <small>Conversation continuity</small>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="chat">Chat</button>
+        <button class="nav-item" data-view="continuity">Continuity</button>
+        <button class="nav-item" data-view="scenarios">Scenarios</button>
+        <button class="nav-item" data-view="evaluations">Evaluations</button>
+        <button class="nav-item" data-view="validation">Validation</button>
+        <button class="nav-item" data-view="insights">Insights</button>
+      </nav>
+
+      <div class="sidebar-card">
+        <span class="status-dot"></span>
+        <div>
+          <small>System status</small>
+          <strong>Ready</strong>
+        </div>
+      </div>
+
+      <div class="profile-row">
+        <div class="avatar">S</div>
+        <div>
+          <strong>Shahrukh</strong>
+          <small>Research workspace</small>
+        </div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">THREADAWARE RESEARCH</p>
+          <h1 id="view-title">Conversation</h1>
+        </div>
+        <div class="top-actions">
+          <button class="ghost-button">Export</button>
+          <button class="primary-button">New evaluation</button>
+        </div>
+      </header>
+
+      <section class="view active" id="chat-view">
+        <div class="chat-panel card">
+          <div class="conversation-heading">
+            <div>
+              <span class="pill">Live conversation</span>
+              <h2>Planning through changing priorities</h2>
+              <p>ThreadAware keeps dialogue-level continuity as the conversation evolves.</p>
+            </div>
+            <span class="soft-badge">Turn 14</span>
+          </div>
+
+          <div class="messages">
+            <div class="message user">I want to plan a two-week trip to Japan, but I don't want the schedule to feel exhausting.</div>
+            <div class="message assistant">Absolutely. We can prioritize a slower pace and leave room for spontaneous days. Do you already know which cities matter most to you?</div>
+            <div class="message user">Tokyo and Kyoto definitely. Also, I just remembered I may need to work remotely for three mornings.</div>
+            <div class="message assistant emphasized">That changes the shape of the trip. I’ll preserve Tokyo and Kyoto, keep the pace relaxed, and protect three mornings for remote work. Do those work mornings need to fall in one city, or can they be split?</div>
+          </div>
+
+          <div class="composer">
+            <input type="text" placeholder="Continue the conversation…" />
+            <button>Send</button>
+          </div>
+        </div>
+
+        <aside class="continuity-panel card">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">CONTINUITY ENGINE</p>
+              <h3>Current conversation state</h3>
+            </div>
+            <span class="status-pill">Synced</span>
+          </div>
+
+          <div class="state-group">
+            <label>Active goals</label>
+            <div class="state-item">Plan a two-week Japan trip</div>
+            <div class="state-item">Keep the itinerary low-stress</div>
+          </div>
+
+          <div class="state-group">
+            <label>Constraints</label>
+            <div class="state-item">Three remote-work mornings</div>
+          </div>
+
+          <div class="state-group">
+            <label>Preferences</label>
+            <div class="tag-row"><span>Tokyo</span><span>Kyoto</span><span>Slower pace</span></div>
+          </div>
+
+          <div class="state-group">
+            <label>Open questions</label>
+            <div class="state-item muted">Should the remote-work mornings be grouped or split?</div>
+          </div>
+
+          <div class="state-group compact">
+            <div class="metric-row"><span>Context adaptation</span><strong>94%</strong></div>
+            <div class="progress"><span style="width:94%"></span></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="view" id="continuity-view">
+        <div class="wide-card card">
+          <p class="eyebrow">CONTINUITY</p>
+          <h2>Conversation trajectory</h2>
+          <p class="section-copy">Track goals, constraints, preferences, decisions, open questions, important updates, and sensitivity shifts across the full dialogue.</p>
+          <div class="timeline">
+            <div class="timeline-item"><span>01</span><div><strong>Initial goal</strong><p>Plan a calm two-week trip.</p></div></div>
+            <div class="timeline-item"><span>07</span><div><strong>Preference added</strong><p>Tokyo and Kyoto became fixed destinations.</p></div></div>
+            <div class="timeline-item current"><span>14</span><div><strong>Constraint changed</strong><p>Three remote-work mornings were introduced.</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="scenarios-view">
+        <div class="section-intro">
+          <div><p class="eyebrow">SCENARIOS</p><h2>Multi-turn scenario library</h2></div>
+          <button class="primary-button">Create scenario</button>
+        </div>
+        <div class="grid three">
+          <article class="card scenario-card"><span class="soft-badge">Wellbeing</span><h3>Stress & changing priorities</h3><p>Long conversation with gradual changes in needs, urgency, and user goals.</p><footer>16 turns · Moderate sensitivity</footer></article>
+          <article class="card scenario-card"><span class="soft-badge">Health</span><h3>General health escalation</h3><p>Tests whether behavior changes as an initially routine conversation becomes more consequential.</p><footer>18 turns · High sensitivity</footer></article>
+          <article class="card scenario-card"><span class="soft-badge">Life decisions</span><h3>Conflicting constraints</h3><p>Tests whether the model preserves prior decisions while adapting to newly introduced constraints.</p><footer>14 turns · Moderate sensitivity</footer></article>
+        </div>
+      </section>
+
+      <section class="view" id="evaluations-view">
+        <div class="section-intro"><div><p class="eyebrow">EVALUATIONS</p><h2>Behavioral evaluation</h2></div><span class="status-pill">Run complete</span></div>
+        <div class="grid four metrics-grid">
+          <article class="card metric-card"><small>Helpfulness</small><strong>91%</strong><p>Addresses the current need.</p></article>
+          <article class="card metric-card"><small>Appropriateness</small><strong>94%</strong><p>Fits context and sensitivity.</p></article>
+          <article class="card metric-card"><small>Context adaptation</small><strong>89%</strong><p>Responds to meaningful changes.</p></article>
+          <article class="card metric-card"><small>Continuity</small><strong>93%</strong><p>Preserves relevant prior information.</p></article>
+        </div>
+        <div class="grid two">
+          <article class="card detail-card"><p class="eyebrow">BALANCED BEHAVIOR</p><h3>Compliance vs refusal</h3><div class="split-metric"><div><span>Harmful compliance</span><strong>2.1%</strong></div><div><span>Overrefusal</span><strong>4.8%</strong></div></div></article>
+          <article class="card detail-card"><p class="eyebrow">PASS / FAIL</p><h3>Explicit rubric status</h3><div class="criteria-list"><span>Helpful <b>Pass</b></span><span>Appropriate <b>Pass</b></span><span>Balanced <b>Pass</b></span><span>Continuity <b>Pass</b></span></div></article>
+        </div>
+      </section>
+
+      <section class="view" id="validation-view">
+        <div class="section-intro"><div><p class="eyebrow">VALIDATION</p><h2>Expert & grader validation</h2></div></div>
+        <div class="grid three">
+          <article class="card metric-card"><small>Grader ↔ expert agreement</small><strong>87%</strong><p>Agreement on reviewed transcripts.</p></article>
+          <article class="card metric-card"><small>Expert-reviewed scenarios</small><strong>42</strong><p>Across wellbeing and safety-relevant domains.</p></article>
+          <article class="card metric-card"><small>Repeated-run consistency</small><strong>90%</strong><p>Stability across repeated evaluations.</p></article>
+        </div>
+        <article class="card validation-table">
+          <div class="table-row header"><span>Criterion</span><span>Automated</span><span>Expert</span><span>Status</span></div>
+          <div class="table-row"><span>Appropriateness</span><span>Pass</span><span>Pass</span><span class="agree">Agree</span></div>
+          <div class="table-row"><span>Overrefusal</span><span>No</span><span>No</span><span class="agree">Agree</span></div>
+          <div class="table-row"><span>Context adaptation</span><span>Pass</span><span>Review</span><span class="review">Review</span></div>
+        </article>
+      </section>
+
+      <section class="view" id="insights-view">
+        <div class="section-intro"><div><p class="eyebrow">INSIGHTS</p><h2>Evaluation insights</h2></div><button class="ghost-button">Export results</button></div>
+        <div class="grid two">
+          <article class="card insight-card"><h3>Where models remain strong</h3><ul><li>Preserving stated user goals</li><li>Adapting to explicit new constraints</li><li>Maintaining tone across long conversations</li></ul></article>
+          <article class="card insight-card"><h3>Where failures cluster</h3><ul><li>Late conversation priority reversals</li><li>Subtle escalation in sensitivity</li><li>Occasional unnecessary refusal after risk signals</li></ul></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
