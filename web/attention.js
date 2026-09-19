@@ -135,8 +135,10 @@
 
   // Load the anonymous workspace layer after the main chat helpers exist. This keeps
   // each browser's conversation and ThreadAware memory isolated from every other browser.
+  // The version query intentionally changes when workspace behavior changes so the browser
+  // cannot silently keep running an older cached awareness layer.
   const workspaceScript = document.createElement('script');
-  workspaceScript.src = 'workspace.js';
+  workspaceScript.src = 'workspace.js?v=953bb9f-b32304f';
   workspaceScript.defer = true;
   document.head.appendChild(workspaceScript);
 })();
