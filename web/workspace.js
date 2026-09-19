@@ -50,6 +50,57 @@
     }
   }
 
+  function resetVisibleConversationState() {
+    const feed = document.getElementById('conversation-feed');
+    if (feed) {
+      feed.innerHTML = '<div id="chat-empty" class="chat-empty"><b>Start a conversation</b><span>ThreadAware will follow what changes, what stays important, and what may need clarification.</span></div>';
+    }
+
+    const awareness = document.querySelector('.continuity-rail .mini-timeline');
+    if (awareness) {
+      awareness.dataset.awarenessReady = '1';
+      awareness.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>As the conversation moves, I’ll quietly notice what changes and what stays important.</span></div>';
+    }
+
+    const timeline = document.getElementById('continuity-timeline');
+    if (timeline) {
+      timeline.innerHTML = '<div class="empty-state"><b>No conversation yet</b><p>Conversation changes and returning threads will appear here as you chat.</p></div>';
+    }
+
+    const set = (id, value) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = value;
+    };
+    set('live-current-intent', 'Waiting for the conversation');
+    set('live-priority-thread', 'Nothing urgent is being carried forward');
+    set('live-open-question', 'None right now');
+    set('live-sensitivity', 'No elevated signal yet');
+    set('summary-topic', 'Waiting for conversation');
+    set('summary-goal', 'No active goal yet');
+    set('summary-preferences', 'None recorded yet');
+    set('summary-status', 'Ready');
+
+    const input = document.getElementById('chat-input');
+    if (input) input.value = '';
+    document.getElementById('threadaware-thinking')?.remove();
+  }
+
+  function clearCurrentBrowserConversation(oldId) {
+    localStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
+    sessionStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
+  }
+
+  function showResetError(message) {
+    const toast = document.getElementById('toast');
+    if (toast) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+      return;
+    }
+    window.alert(message);
+  }
+
   function installFreshStart() {
     const rail = document.querySelector('.continuity-rail');
     const title = rail?.querySelector('.rail-title');
@@ -58,30 +109,46 @@
     const button = document.createElement('button');
     button.className = 'memory-clear-button';
     button.textContent = 'Fresh start';
-    button.title = 'Clear this browser workspace and begin a new conversation';
+    button.title = 'Completely clear this conversation and begin with no carried-over memory';
 
     button.addEventListener('click', async () => {
-      const ok = window.confirm('Start fresh? This clears the conversation and memory for this browser workspace only.');
+      const ok = window.confirm('Start fresh? This permanently clears this conversation, its saved transcript, and its ThreadAware memory for this browser workspace.');
       if (!ok) return;
+
       const oldId = workspaceId;
+      button.disabled = true;
+      const oldText = button.textContent;
+      button.textContent = 'Clearing…';
+
       try {
-        await fetch('/api/memory/clear', {
+        const response = await fetch('/api/memory/clear', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({workspace_id: oldId})
         });
-      } catch (_) {}
-      localStorage.removeItem(`${TRANSCRIPT_PREFIX}${oldId}`);
-      workspaceId = newId();
-      localStorage.setItem(WORKSPACE_KEY, workspaceId);
-      window.location.reload();
+        if (!response.ok) throw new Error('The server could not confirm that conversation memory was cleared.');
+
+        clearCurrentBrowserConversation(oldId);
+        resetVisibleConversationState();
+
+        // Rotate only after the old workspace has been confirmed cleared. Normal page
+        // refreshes keep the same ID, so memory remains persistent until Fresh start.
+        workspaceId = newId();
+        localStorage.setItem(WORKSPACE_KEY, workspaceId);
+        window.location.reload();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = oldText;
+        showResetError(`Fresh start was not completed: ${error.message}`);
+      }
     });
 
     title.appendChild(button);
   }
 
-  /* Persist chat only. Noticing is rendered exclusively by app.js so there is no
-     competing renderer, duplicate event stream, timestamp layer, or fetch race. */
+  /* Persist chat across ordinary refreshes. Fresh start is the explicit hard-reset
+     boundary. Noticing is rendered exclusively by app.js so there is no competing
+     renderer, duplicate event stream, timestamp layer, or fetch race. */
   const nativeFetch = window.fetch.bind(window);
   window.fetch = async (input, init = {}) => {
     const url = typeof input === 'string' ? input : input?.url || '';
