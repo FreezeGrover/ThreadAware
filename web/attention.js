@@ -1,6 +1,27 @@
 (() => {
   const escape = (value) => String(value ?? '').replace(/[&<>\"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
 
+  const style = document.createElement('style');
+  style.textContent = `
+    .continuity-rail .mini-timeline[data-awareness-ready="1"]{display:flex;flex-direction:column;gap:10px;margin-top:14px;max-height:360px;overflow:auto;padding-right:3px}
+    .awareness-empty{padding:12px 13px;border-radius:13px;background:linear-gradient(145deg,#f8fbff,#f5f8fc);border:1px solid #e1e8f0;display:grid;gap:5px}
+    .awareness-empty b{font-size:11px;color:#17304f}.awareness-empty span{font-size:10px;line-height:1.55;color:#6c7b91}
+    .awareness-note{display:grid;grid-template-columns:10px 1fr;gap:10px;padding:11px 12px;border-radius:13px;border:1px solid #e4eaf1;background:#fff;box-shadow:0 6px 18px rgba(34,48,72,.045);animation:awarenessIn .24s ease-out}
+    .awareness-note .awareness-dot{width:7px;height:7px;border-radius:50%;margin-top:5px;background:#68bfa4;box-shadow:0 0 0 4px rgba(104,191,164,.12)}
+    .awareness-note.orange .awareness-dot{background:#e6a660;box-shadow:0 0 0 4px rgba(230,166,96,.13)}
+    .awareness-note.purple .awareness-dot{background:#9784d8;box-shadow:0 0 0 4px rgba(151,132,216,.12)}
+    .awareness-note small{display:block;font-size:9px;letter-spacing:.035em;color:#77859a;margin-bottom:4px;font-weight:750}
+    .awareness-note strong{display:block;font-size:10.5px;line-height:1.5;color:#21334d;font-weight:650}
+    @keyframes awarenessIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+    .thinking-card{max-width:190px!important;padding:13px 16px!important;background:#fbfcfe!important}
+    .thinking-line{display:flex;align-items:center;gap:5px;font-size:12px;color:#64748b}
+    .thinking-line>span{margin-right:2px}
+    .thinking-line i{display:block;width:5px;height:5px;border-radius:50%;background:#7e8da3;animation:thinkingPulse 1.15s infinite ease-in-out}
+    .thinking-line i:nth-child(3){animation-delay:.16s}.thinking-line i:nth-child(4){animation-delay:.32s}
+    @keyframes thinkingPulse{0%,70%,100%{opacity:.28;transform:translateY(0)}35%{opacity:1;transform:translateY(-2px)}}
+  `;
+  document.head.appendChild(style);
+
   const inline = (value) => escape(value)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -36,6 +57,9 @@
     const hour = new Date().getHours();
     heading.textContent = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   }
+
+  const introCopy = document.querySelector('#chat-empty > p');
+  if (introCopy) introCopy.textContent = 'ThreadAware notices evolving goals, changing constraints, possible interpretations, sensitivity, and returning topics across longer conversations — then makes those changes visible.';
 
   const empty = document.getElementById('chat-empty');
   if (empty && !empty.querySelector('.hero-starters')) {
@@ -74,7 +98,7 @@
   };
 
   window.collectMessages = function() {
-    return [...document.querySelectorAll('#conversation-feed .chat-row')].map((row) => ({role:row.classList.contains('user-row')?'user':'assistant',content:row.dataset.rawContent || row.querySelector('.rich-message')?.innerText || ''})).filter((message) => message.content);
+    return [...document.querySelectorAll('#conversation-feed .chat-row:not(.thinking-row)')].map((row) => ({role:row.classList.contains('user-row')?'user':'assistant',content:row.dataset.rawContent || row.querySelector('.rich-message')?.innerText || ''})).filter((message) => message.content);
   };
 
   const setText = (id, value) => { const el=document.getElementById(id); if (el) el.textContent=value; };
