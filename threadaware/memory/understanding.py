@@ -6,7 +6,7 @@ from typing import Any
 
 from threadaware.common.models import Turn
 from threadaware.memory.engine import ConversationMemory
-from threadaware.memory.models import ConversationUnderstanding
+from threadaware.memory.models import ConversationUnderstanding, WellbeingThreadState
 from threadaware.providers.base import ModelProvider
 
 
@@ -18,6 +18,7 @@ class ConversationUnderstandingEngine:
         self.model = model
         self.memory = ConversationMemory()
         self.active_topic: str | None = None
+        self.wellbeing_state = WellbeingThreadState()
 
     def analyze(self, *, turns: list[Turn], live: bool = False) -> ConversationUnderstanding:
         if live and self.provider and self.model:
@@ -27,6 +28,7 @@ class ConversationUnderstandingEngine:
     def clear(self) -> None:
         self.memory = ConversationMemory()
         self.active_topic = None
+        self.wellbeing_state = WellbeingThreadState()
 
     def _analyze_demo(self, turns: list[Turn]) -> ConversationUnderstanding:
         latest = turns[-1].content.strip() if turns else ""
@@ -46,7 +48,7 @@ class ConversationUnderstandingEngine:
             acknowledgement = (
                 f"The conversation has moved toward {topic}."
                 if relation == "new"
-                else f"The focus has shifted while still connecting with what came before."
+                else "The focus has shifted while still connecting with what came before."
             )
             noticing.append({"kind": "topic-shift", "title": "Current intent", "note": acknowledgement, "importance": "normal"})
         elif not previous:
@@ -98,6 +100,7 @@ class ConversationUnderstandingEngine:
                 "acknowledgement": acknowledgement,
             },
             "noticing": noticing,
+            "wellbeing": self.wellbeing_state.model_dump(),
         }
         return ConversationUnderstanding.model_validate(payload)
 
@@ -126,54 +129,46 @@ class ConversationUnderstandingEngine:
     def _analyze_live(self, turns: list[Turn]) -> ConversationUnderstanding:
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in turns)
         memories = [item.model_dump() for item in self.memory.active()]
+        prior_wellbeing = self.wellbeing_state.model_dump()
 
         prompt = f"""You are ThreadAware's conversation-understanding layer.
 
-Analyze the latest user turn against the ENTIRE visible conversation and active ThreadAware memory.
-Do not reveal hidden chain-of-thought. Return only concise, user-safe conclusions about what the user is doing now and what still matters from earlier.
+Analyze the latest user turn against the ENTIRE visible conversation, active ThreadAware memory, and the prior wellbeing-thread state.
+Do not reveal hidden chain-of-thought. Return only concise, user-safe conclusions and structured state.
 
-The central principle is CONTINUITY, not simple topic-change detection.
-A new topic does not erase an unresolved important thread. In particular, wellbeing, health, safety, acute distress, medication, self-care, or risk-related information can remain important even when the user abruptly moves to something casual.
+The central principle is CONTINUITY.
+A topic change must not erase earlier information that still matters. Later turns may UPDATE, CORRECT, RESOLVE, SUPERSEDE, or INCREASE the importance of earlier details, even after many unrelated turns.
 
-For every turn, distinguish:
-- CURRENT INTENT: what the user appears to want or do right now.
-- CARRIED-FORWARD THREADS: earlier matters that remain unresolved or materially relevant.
-- PRIORITY: whether any carried-forward wellbeing/safety issue deserves continued attention.
+For every turn distinguish:
+- CURRENT INTENT: what the user wants now.
+- CARRIED-FORWARD THREADS: earlier matters that remain relevant.
+- WELLBEING STATE: whether any health/wellbeing/safety concern remains active, what information is still missing, whether a follow-up is due, and whether the concern has become more or less serious.
 
-WELLBEING / SAFETY CONTINUITY RULES:
-- If the user previously disclosed an unresolved health, wellbeing, or safety concern, do NOT silently drop it merely because they changed topics.
-- Keep such a concern active until the conversation provides reasonable evidence that it is resolved, no longer relevant, or superseded.
-- When the user pivots away from an unresolved wellbeing/safety concern, produce a separate noticing item with kind="sensitivity" and importance="high" or "normal" depending on seriousness.
-- That notice should say plainly what remains important, without alarming the user or hijacking the new topic.
-- Do not nag. The purpose is to preserve situational awareness, not force the conversation back.
-- If a safety-critical detail would materially change what the assistant should do next, make that importance visible.
+GENERIC WELLBEING LIFECYCLE:
+- Apply this to any physical-health, mental-health, medication, distress, eating-related, sleep, injury, symptom, or safety-relevant concern. Do not special-case one symptom.
+- If a concern was previously active, do not silently drop it because the user changes topic.
+- Update the SAME thread when later information refers back to it, even after long detours.
+- If newer information corrects an earlier detail, the newer detail should replace the outdated assumption in the summary while provenance remains available in conversation memory.
+- If the user clearly says the concern is resolved, recovered, no longer relevant, or a clinician has clarified it, mark the state resolved when appropriate.
+- If later evidence makes the situation more concerning, increase severity and update the recommended action.
+- If later evidence makes it less concerning, de-escalate proportionately.
 
-CURRENT-INTENT RULES:
-- Produce one noticing item that summarizes the user's present intent in plain language.
-- Do not copy the user's raw words as the title. For example, a message like "hiiii" should be summarized with a neutral label such as "Greeting" or "Check-in", not repeated verbatim.
-- A greeting is not automatically a topic shift.
-- If there is no concrete request yet, say that naturally rather than inventing one.
+FOLLOW-UP POLICY:
+- Track whether an important wellbeing question was asked and whether the user answered it.
+- follow_up_attempts counts distinct assistant attempts to obtain the key missing information for the ACTIVE concern, not ordinary turns.
+- should_follow_up_now=true when one important unanswered question should be gently asked in the next response.
+- On the first meaningful pivot away from an unresolved concern, a single gentle follow-up is normally appropriate if the missing information affects safe/helpful support.
+- If that follow-up has already been asked and the user again moves on, do not request the same information every turn. Set status to waiting or monitoring and should_follow_up_now=false unless new evidence raises concern or a natural reopening makes another follow-up useful.
+- Silence or a topic change by itself is NOT evidence of an emergency.
+- If the latest user turn answers a previously missing item, remove that item from key_missing_info and update status/action accordingly.
+- Ask for the minimum information needed; do not turn the conversation into an interrogation.
 
-OTHER THINGS TO TRACK:
-1. Goals, priorities, constraints, decisions, corrections, and details that modify earlier information.
-2. Unanswered assistant questions that still matter.
-3. Returns to earlier threads.
-4. More than one reasonable interpretation when it genuinely affects the answer. Call these possible interpretations or possible readings.
-5. Connections between current intent and older context.
-
-NOTICING VOICE:
-- Write like a warm, perceptive companion, not a classifier, event log, analyst, or clinical dashboard.
-- Use short human-readable titles such as "Greeting", "Current intent", "Health concern", "Open question", "Returning thread", or another natural label that fits the actual turn.
-- Notes should usually be one natural sentence; two short sentences only when useful.
-- Never expose internal category names or taxonomy phrases.
-- Do not mechanically say "we moved from X to Y".
-- Do not repeatedly use stock closings such as "keeping both threads in view".
-- Do not begin with filler such as "Hmm", "Oh", "Interesting", "Aha", or "Well".
-- Do not repeat the same sentence skeleton across adjacent turns.
-- Do not overstate tiny shifts.
-- Never sound clinical, bureaucratic, or robotic.
-- Do not invent feelings, motives, diagnoses, or facts.
-- Keep each note concise enough to scan quickly, ideally under 35 words.
+NOTICING:
+- EVERY user turn needs at least one noticing item for current intent.
+- When an unresolved wellbeing thread remains relevant, add a separate sensitivity or open-question notice.
+- Use warm, human-readable language such as "Health concern", "Wellbeing check-in", "Open question", "Still unresolved", "Updated health context", or similar.
+- Never say the user "dodged" or "ignored" a question unless the user explicitly says they intentionally did so. Prefer "not answered yet" or "still unresolved".
+- Do not expose internal taxonomy or hidden reasoning.
 
 Return JSON only with this shape:
 {{
@@ -197,17 +192,30 @@ Return JSON only with this shape:
     "title": string,
     "note": string,
     "importance": "quiet"|"normal"|"high"
-  }}]
+  }}],
+  "wellbeing": {{
+    "active": boolean,
+    "summary": string|null,
+    "status": "none"|"needs-clarification"|"follow-up-asked"|"waiting"|"monitoring"|"professional-care"|"urgent"|"emergency"|"resolved",
+    "severity": "unknown"|"low"|"moderate"|"high"|"urgent",
+    "key_missing_info": [string],
+    "follow_up_attempts": integer,
+    "should_follow_up_now": boolean,
+    "recommended_action": string|null,
+    "user_safe_note": string|null
+  }}
 }}
 
-Rules:
-- EVERY user turn must yield at least one noticing item summarizing current intent.
-- Add a separate carried-forward notice whenever an unresolved earlier thread remains important enough to affect future support.
-- Unresolved wellbeing/safety concerns should survive unrelated topic changes.
-- If the current turn genuinely resolves an earlier concern, stop carrying it forward.
-- Add more than two notices only when clearly necessary.
-- If the user returns to an old topic, use relation="returning" internally but phrase the note naturally.
-- If the latest turn answers an earlier open question, stop describing it as unanswered.
+Additional rules:
+- Preserve the prior wellbeing state unless the transcript gives a reason to update it.
+- Do not reset follow_up_attempts just because the topic changed.
+- Do not mark an issue resolved merely because it has not been mentioned recently.
+- If no wellbeing concern has appeared, return the neutral default state.
+- If the current turn genuinely resolves the concern, active may become false and status="resolved".
+- Keep summaries compact but specific enough to reconnect after many twists and turns.
+
+Prior wellbeing state:
+{json.dumps(prior_wellbeing, indent=2)}
 
 Existing ThreadAware memory:
 {json.dumps(memories, indent=2)}
@@ -221,7 +229,7 @@ Full visible transcript:
         raw = self.provider.complete(
             model=self.model,
             messages=[Turn(role="user", content=prompt)],
-            max_output_tokens=1800,
+            max_output_tokens=2000,
         )
         data = self._parse_json(raw)
 
@@ -231,6 +239,28 @@ Full visible transcript:
                 analysis=data,
                 memories=memories,
             )
+
+        raw_wellbeing = data.get("wellbeing")
+        if isinstance(raw_wellbeing, dict):
+            try:
+                next_wellbeing = WellbeingThreadState.model_validate(raw_wellbeing)
+            except Exception:
+                next_wellbeing = self.wellbeing_state.model_copy(deep=True)
+        else:
+            next_wellbeing = self.wellbeing_state.model_copy(deep=True)
+
+        if self.wellbeing_state.active and next_wellbeing.status != "resolved":
+            next_wellbeing.follow_up_attempts = max(
+                self.wellbeing_state.follow_up_attempts,
+                next_wellbeing.follow_up_attempts,
+            )
+            if not next_wellbeing.summary:
+                next_wellbeing.summary = self.wellbeing_state.summary
+            if not next_wellbeing.key_missing_info:
+                next_wellbeing.key_missing_info = list(self.wellbeing_state.key_missing_info)
+
+        self.wellbeing_state = next_wellbeing
+        data["wellbeing"] = self.wellbeing_state.model_dump()
 
         updated_items = []
         for update in data.get("memory_updates", []):
@@ -256,17 +286,10 @@ Full visible transcript:
 
 The structural conversation analysis returned no noticing items. Generate the missing user-safe awareness trace now.
 
-You MUST return at least one event summarizing the latest user's CURRENT INTENT, even for a greeting, check-in, joke, continuation, or ordinary question.
+You MUST return at least one event summarizing the latest user's CURRENT INTENT.
+Also inspect the entire transcript, memory, and wellbeing state for unresolved health, wellbeing, safety, distress, medication, or risk-related threads. If one remains relevant, add a separate sensitivity/open-question notice.
 
-Also inspect the entire transcript and memory for unresolved wellbeing, health, safety, distress, medication, or risk-related threads. If one remains unresolved and could still matter, add a separate sensitivity notice so it is not lost just because the user changed topics.
-
-VOICE:
-- Use a short natural title such as "Greeting", "Current intent", "Health concern", "Open question", or another human-readable label.
-- Do not copy raw user text as a title.
-- Usually write one natural sentence per notice, ideally under 35 words.
-- Do not use taxonomy labels, mechanical transition language, stock closings, or filler interjections.
-- Do not invent motives, emotions, diagnoses, or facts.
-- Do not expose hidden reasoning.
+Use short natural titles. Do not copy raw user text as a title. Do not invent motives, diagnoses, or facts. Do not expose hidden reasoning.
 
 Return JSON only:
 {{
@@ -283,6 +306,9 @@ Existing analysis:
 
 Existing ThreadAware memory:
 {json.dumps(memories, indent=2)}
+
+Prior wellbeing state:
+{json.dumps(self.wellbeing_state.model_dump(), indent=2)}
 
 Full visible transcript:
 {transcript}
