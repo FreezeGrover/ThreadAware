@@ -71,3 +71,48 @@ def test_single_clear_referent_does_not_force_clarification():
     )
 
     assert result.interpretation.clarification_needed is False
+
+
+def test_live_greeting_gets_model_generated_noticing_when_main_pass_omits_it():
+    class FakeProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def complete(self, *, model, messages, max_output_tokens=1500, role="unspecified"):
+            self.calls += 1
+            if self.calls == 1:
+                return '''{
+                  "active_topic": "casual greeting",
+                  "memory_updates": [],
+                  "interpretation": {
+                    "interpretations": [],
+                    "clarification_needed": false,
+                    "clarification_question": null,
+                    "reason": "Clear greeting"
+                  },
+                  "topic_shift": {
+                    "shifted": false,
+                    "previous_topic": null,
+                    "new_topic": "casual greeting",
+                    "relation": "same",
+                    "acknowledgement": null
+                  },
+                  "noticing": []
+                }'''
+            return '''{
+              "noticing": [{
+                "kind": "connection",
+                "title": "A light start",
+                "note": "The conversation is opening casually, so I’m keeping the tone easy and open.",
+                "importance": "quiet"
+              }]
+            }'''
+
+    provider = FakeProvider()
+    engine = ConversationUnderstandingEngine(provider=provider, model="test-model")
+    result = engine.analyze(turns=[Turn(role="user", content="heyyy")], live=True)
+
+    assert provider.calls == 2
+    assert len(result.noticing) == 1
+    assert result.noticing[0].title == "A light start"
+    assert result.noticing[0].note
