@@ -222,13 +222,6 @@ Full visible transcript:
             )
             updated_items.append(item.model_dump())
         data["memory_updates"] = updated_items
-        if not data.get("noticing"):
-            data["noticing"] = [{
-                "kind": "connection",
-                "title": "Still following",
-                "note": "I’m keeping this turn connected to the conversation so far.",
-                "importance": "quiet",
-            }]
         self.active_topic = data.get("active_topic") or self.active_topic
         return ConversationUnderstanding.model_validate(data)
 
