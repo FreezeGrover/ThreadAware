@@ -11,7 +11,17 @@ from threadaware.providers.base import ModelProvider
 
 
 class ConversationUnderstandingEngine:
-    """Analyze how a conversation evolves without prematurely collapsing uncertainty."""
+    """Longitudinal conversation understanding with a user-safe wellbeing lifecycle."""
+
+    HEALTH_TOPIC = "health and wellbeing"
+    HEALTH_SIGNALS = {
+        "health", "symptom", "symptoms", "sick", "ill", "illness", "pain", "hurt", "injury",
+        "fever", "cough", "coughing", "breathing", "breath", "wheezing", "dizzy", "dizziness",
+        "nausea", "vomiting", "headache", "migraine", "rash", "bleeding", "infection", "allergy",
+        "medicine", "medication", "drug", "doctor", "hospital", "sleep", "insomnia", "stress",
+        "anxiety", "anxious", "panic", "depressed", "depression", "distress", "self-harm",
+        "suicidal", "eating", "appetite", "pregnant", "pregnancy", "wellbeing", "well-being",
+    }
 
     def __init__(self, provider: ModelProvider | None = None, model: str | None = None) -> None:
         self.provider = provider
@@ -32,57 +42,38 @@ class ConversationUnderstandingEngine:
 
     def _analyze_demo(self, turns: list[Turn]) -> ConversationUnderstanding:
         latest = turns[-1].content.strip() if turns else ""
-        lower = latest.lower()
-        topic = self._coarse_topic(lower)
+        topic = self._coarse_topic(latest.lower())
         previous = self.active_topic
-        relation = "same"
-        shifted = False
-        acknowledgement = None
-        noticing: list[dict[str, str]] = []
-
-        if previous and topic != previous:
-            previous_words = set(previous.split())
-            topic_words = set(topic.split())
-            relation = "related" if previous_words & topic_words else "new"
-            shifted = True
-            acknowledgement = (
-                f"The conversation has moved toward {topic}."
-                if relation == "new"
-                else "The focus has shifted while still connecting with what came before."
-            )
-            noticing.append({"kind": "topic-shift", "title": "Current intent", "note": acknowledgement, "importance": "normal"})
-        elif not previous:
-            relation = "new"
-            noticing.append({"kind": "connection", "title": "Current intent", "note": f"The conversation is beginning around {topic}.", "importance": "quiet"})
-        else:
-            noticing.append({"kind": "connection", "title": "Current intent", "note": f"The user is continuing around {topic}.", "importance": "quiet"})
+        shifted = bool(previous and topic != previous)
+        relation = "new" if shifted or not previous else "same"
+        acknowledgement = f"The conversation has moved toward {topic}." if shifted else None
+        noticing = [self._current_intent_notice(latest, topic)]
 
         self.active_topic = topic
         memory_item = self.memory.upsert(
             topic=topic,
             summary=latest[:240] or "Conversation topic introduced",
-            detail=latest if latest else None,
+            detail=latest or None,
             source_turn=max(0, len(turns) - 1),
         )
 
-        interpretations = []
+        interpretations: list[dict[str, Any]] = []
         clarification_needed = False
         clarification_question = None
         reason = "The latest turn has one sufficiently clear operational reading."
-
         if self._has_competing_demo_readings(turns):
             candidates = self._candidate_referent_labels(turns)
-            first = candidates[0] if len(candidates) > 0 else "the first recent item"
+            first = candidates[0] if candidates else "the first recent item"
             second = candidates[1] if len(candidates) > 1 else "the other recent item"
             interpretations = [
-                {"label": f"{first} reading", "description": f"The request may refer to {first}.", "confidence": 0.5, "evidence": [f"{first} remains an active candidate in the preceding turn"]},
-                {"label": f"{second} reading", "description": f"The request may instead refer to {second}.", "confidence": 0.5, "evidence": [f"{second} also remains an active candidate in the preceding turn"]},
+                {"label": f"{first} reading", "description": f"The request may refer to {first}.", "confidence": 0.5, "evidence": []},
+                {"label": f"{second} reading", "description": f"The request may instead refer to {second}.", "confidence": 0.5, "evidence": []},
             ]
             clarification_needed = True
             clarification_question = f"When you say that, do you mean {first}, or {second}?"
             reason = "More than one plausible reading survives and choosing one could materially change the response."
-            noticing.append({"kind": "possible-interpretations", "title": "Needs clarification", "note": "There is more than one reasonable reading, so choosing one without checking could change the answer.", "importance": "normal"})
 
+        self._enforce_wellbeing_lifecycle(turns, topic, noticing, model_state=None)
         payload = {
             "active_topic": topic,
             "memory_updates": [memory_item.model_dump()],
@@ -104,73 +95,41 @@ class ConversationUnderstandingEngine:
         }
         return ConversationUnderstanding.model_validate(payload)
 
-    @staticmethod
-    def _has_competing_demo_readings(turns: list[Turn]) -> bool:
-        if len(turns) < 2:
-            return False
-        latest = turns[-1].content.lower()
-        tokens = set(re.findall(r"[a-z]+(?:'[a-z]+)?", latest))
-        has_reference = bool(tokens & {"it", "that", "this", "they", "he", "she", "there"} or re.search(r"\b(?:same|other)\s+one\b", latest))
-        if not has_reference:
-            return False
-        prior = next((turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"), turns[-2].content.lower())
-        return bool(re.search(r"\b(?:and|or|versus|vs\.?|either)\b", prior) or prior.count(",") >= 1)
-
-    @staticmethod
-    def _candidate_referent_labels(turns: list[Turn]) -> list[str]:
-        prior = next((turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"), "")
-        labels = re.findall(r"\b(?:the|a|an|my|your)\s+([a-z][a-z0-9_-]*)", prior)
-        unique: list[str] = []
-        for label in labels:
-            if label not in unique:
-                unique.append(label)
-        return [f"the {label}" for label in unique[-2:]]
-
     def _analyze_live(self, turns: list[Turn]) -> ConversationUnderstanding:
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in turns)
         memories = [item.model_dump() for item in self.memory.active()]
         prior_wellbeing = self.wellbeing_state.model_dump()
 
         prompt = f"""You are ThreadAware's conversation-understanding layer.
+Analyze the latest user turn against the ENTIRE visible conversation, active memory, and prior wellbeing state.
+Return only concise user-safe JSON; never reveal hidden reasoning.
 
-Analyze the latest user turn against the ENTIRE visible conversation, active ThreadAware memory, and the prior wellbeing-thread state.
-Do not reveal hidden chain-of-thought. Return only concise, user-safe conclusions and structured state.
+Core rule: continuity survives topic changes. Later information can update, correct, resolve, supersede, increase, or decrease the importance of earlier information even after many unrelated turns.
 
-The central principle is CONTINUITY.
-A topic change must not erase earlier information that still matters. Later turns may UPDATE, CORRECT, RESOLVE, SUPERSEDE, or INCREASE the importance of earlier details, even after many unrelated turns.
+For EVERY turn identify:
+1. CURRENT INTENT — what the USER is doing or asking now. Never summarize the assistant's own reply as the user's intent.
+2. CARRIED-FORWARD THREADS — unresolved matters that still affect future support.
+3. WELLBEING STATE — any physical health, mental health, medication, distress, eating-related, sleep, injury, symptom, or safety concern. This is semantic: do not rely on a fixed list of diagnoses.
 
-For every turn distinguish:
-- CURRENT INTENT: what the user wants now.
-- CARRIED-FORWARD THREADS: earlier matters that remain relevant.
-- WELLBEING STATE: whether any health/wellbeing/safety concern remains active, what information is still missing, whether a follow-up is due, and whether the concern has become more or less serious.
+Wellbeing lifecycle:
+- Never drop an unresolved concern merely because the user changes topic.
+- Update the same concern when later information refers back to it, even after a long detour.
+- If newer information corrects an old detail, use the newer detail in the current summary.
+- Mark resolved only when there is evidence of resolution.
+- Increase/decrease severity when evidence changes.
+- Track important unanswered questions.
+- On the first meaningful pivot away from an unresolved concern, set should_follow_up_now=true when one key missing fact still materially affects safe/helpful support.
+- After that follow-up is attempted and the user still does not answer, move to waiting/monitoring instead of repeating it every turn, unless new evidence raises risk or a natural reopening makes another follow-up useful.
+- Silence or topic change alone is never evidence of emergency.
+- Ask for the minimum information needed.
 
-GENERIC WELLBEING LIFECYCLE:
-- Apply this to any physical-health, mental-health, medication, distress, eating-related, sleep, injury, symptom, or safety-relevant concern. Do not special-case one symptom.
-- If a concern was previously active, do not silently drop it because the user changes topic.
-- Update the SAME thread when later information refers back to it, even after long detours.
-- If newer information corrects an earlier detail, the newer detail should replace the outdated assumption in the summary while provenance remains available in conversation memory.
-- If the user clearly says the concern is resolved, recovered, no longer relevant, or a clinician has clarified it, mark the state resolved when appropriate.
-- If later evidence makes the situation more concerning, increase severity and update the recommended action.
-- If later evidence makes it less concerning, de-escalate proportionately.
+Noticing voice:
+- Every user turn gets a current-intent notice.
+- A casual greeting should be represented semantically, e.g. "Casual greeting / social check-in", not by copying either speaker's words.
+- If wellbeing remains unresolved, add a separate sensitivity/open-question notice.
+- Say "not answered yet" or "still unresolved", never "dodged" unless the user explicitly says they intentionally avoided it.
 
-FOLLOW-UP POLICY:
-- Track whether an important wellbeing question was asked and whether the user answered it.
-- follow_up_attempts counts distinct assistant attempts to obtain the key missing information for the ACTIVE concern, not ordinary turns.
-- should_follow_up_now=true when one important unanswered question should be gently asked in the next response.
-- On the first meaningful pivot away from an unresolved concern, a single gentle follow-up is normally appropriate if the missing information affects safe/helpful support.
-- If that follow-up has already been asked and the user again moves on, do not request the same information every turn. Set status to waiting or monitoring and should_follow_up_now=false unless new evidence raises concern or a natural reopening makes another follow-up useful.
-- Silence or a topic change by itself is NOT evidence of an emergency.
-- If the latest user turn answers a previously missing item, remove that item from key_missing_info and update status/action accordingly.
-- Ask for the minimum information needed; do not turn the conversation into an interrogation.
-
-NOTICING:
-- EVERY user turn needs at least one noticing item for current intent.
-- When an unresolved wellbeing thread remains relevant, add a separate sensitivity or open-question notice.
-- Use warm, human-readable language such as "Health concern", "Wellbeing check-in", "Open question", "Still unresolved", "Updated health context", or similar.
-- Never say the user "dodged" or "ignored" a question unless the user explicitly says they intentionally did so. Prefer "not answered yet" or "still unresolved".
-- Do not expose internal taxonomy or hidden reasoning.
-
-Return JSON only with this shape:
+Return JSON exactly in this shape:
 {{
   "active_topic": string|null,
   "memory_updates": [{{"topic": string, "summary": string, "detail": string|null}}],
@@ -206,14 +165,6 @@ Return JSON only with this shape:
   }}
 }}
 
-Additional rules:
-- Preserve the prior wellbeing state unless the transcript gives a reason to update it.
-- Do not reset follow_up_attempts just because the topic changed.
-- Do not mark an issue resolved merely because it has not been mentioned recently.
-- If no wellbeing concern has appeared, return the neutral default state.
-- If the current turn genuinely resolves the concern, active may become false and status="resolved".
-- Keep summaries compact but specific enough to reconnect after many twists and turns.
-
 Prior wellbeing state:
 {json.dumps(prior_wellbeing, indent=2)}
 
@@ -233,37 +184,23 @@ Full visible transcript:
         )
         data = self._parse_json(raw)
 
-        if not data.get("noticing"):
-            data["noticing"] = self._generate_live_noticing(
-                transcript=transcript,
-                analysis=data,
-                memories=memories,
-            )
-
         raw_wellbeing = data.get("wellbeing")
-        if isinstance(raw_wellbeing, dict):
-            try:
-                next_wellbeing = WellbeingThreadState.model_validate(raw_wellbeing)
-            except Exception:
-                next_wellbeing = self.wellbeing_state.model_copy(deep=True)
-        else:
-            next_wellbeing = self.wellbeing_state.model_copy(deep=True)
+        try:
+            model_state = WellbeingThreadState.model_validate(raw_wellbeing) if isinstance(raw_wellbeing, dict) else None
+        except Exception:
+            model_state = None
 
-        if self.wellbeing_state.active and next_wellbeing.status != "resolved":
-            next_wellbeing.follow_up_attempts = max(
-                self.wellbeing_state.follow_up_attempts,
-                next_wellbeing.follow_up_attempts,
-            )
-            if not next_wellbeing.summary:
-                next_wellbeing.summary = self.wellbeing_state.summary
-            if not next_wellbeing.key_missing_info:
-                next_wellbeing.key_missing_info = list(self.wellbeing_state.key_missing_info)
-
-        self.wellbeing_state = next_wellbeing
+        topic = data.get("active_topic") or self._coarse_topic(turns[-1].content.lower())
+        noticing = data.get("noticing") if isinstance(data.get("noticing"), list) else []
+        noticing = self._normalize_current_intent(turns, noticing, topic)
+        self._enforce_wellbeing_lifecycle(turns, topic, noticing, model_state=model_state)
+        data["noticing"] = noticing
         data["wellbeing"] = self.wellbeing_state.model_dump()
 
         updated_items = []
         for update in data.get("memory_updates", []):
+            if not isinstance(update, dict) or not update.get("topic") or not update.get("summary"):
+                continue
             item = self.memory.upsert(
                 topic=str(update["topic"]),
                 summary=str(update["summary"]),
@@ -271,72 +208,229 @@ Full visible transcript:
                 source_turn=max(0, len(turns) - 1),
             )
             updated_items.append(item.model_dump())
+
+        # Always retain the latest user turn in memory even if the model omitted a memory update.
+        if not updated_items and turns:
+            item = self.memory.upsert(
+                topic=topic,
+                summary=turns[-1].content[:240],
+                detail=turns[-1].content,
+                source_turn=max(0, len(turns) - 1),
+            )
+            updated_items.append(item.model_dump())
+
         data["memory_updates"] = updated_items
-        self.active_topic = data.get("active_topic") or self.active_topic
+        self.active_topic = topic or self.active_topic
         return ConversationUnderstanding.model_validate(data)
 
-    def _generate_live_noticing(
+    def _enforce_wellbeing_lifecycle(
         self,
-        *,
-        transcript: str,
-        analysis: dict[str, Any],
-        memories: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        prompt = f"""You are ThreadAware's noticing layer.
+        turns: list[Turn],
+        topic: str | None,
+        noticing: list[dict[str, Any]],
+        model_state: WellbeingThreadState | None,
+    ) -> None:
+        """Repair lifecycle state when the semantic model under-tracks an established concern."""
+        prior = self.wellbeing_state.model_copy(deep=True)
+        latest = turns[-1].content.strip() if turns else ""
+        latest_lower = latest.lower()
+        latest_is_health = topic == self.HEALTH_TOPIC or self._contains_health_signal(latest_lower)
+        health_memory = self._latest_health_memory()
 
-The structural conversation analysis returned no noticing items. Generate the missing user-safe awareness trace now.
+        if model_state is not None:
+            next_state = model_state.model_copy(deep=True)
+        else:
+            next_state = prior.model_copy(deep=True)
 
-You MUST return at least one event summarizing the latest user's CURRENT INTENT.
-Also inspect the entire transcript, memory, and wellbeing state for unresolved health, wellbeing, safety, distress, medication, or risk-related threads. If one remains relevant, add a separate sensitivity/open-question notice.
+        # A previously established concern cannot disappear just because a later model call omitted it.
+        if prior.active and next_state.status != "resolved":
+            next_state.active = True
+            next_state.follow_up_attempts = max(prior.follow_up_attempts, next_state.follow_up_attempts)
+            if not next_state.summary:
+                next_state.summary = prior.summary
+            if not next_state.key_missing_info:
+                next_state.key_missing_info = list(prior.key_missing_info)
+            if not next_state.recommended_action:
+                next_state.recommended_action = prior.recommended_action
 
-Use short natural titles. Do not copy raw user text as a title. Do not invent motives, diagnoses, or facts. Do not expose hidden reasoning.
-
-Return JSON only:
-{{
-  "noticing": [{{
-    "kind": "topic-shift"|"return"|"goal-change"|"priority-change"|"constraint"|"sensitivity"|"open-question"|"possible-interpretations"|"memory-update"|"connection"|"other",
-    "title": string,
-    "note": string,
-    "importance": "quiet"|"normal"|"high"
-  }}]
-}}
-
-Existing analysis:
-{json.dumps(analysis, indent=2)}
-
-Existing ThreadAware memory:
-{json.dumps(memories, indent=2)}
-
-Prior wellbeing state:
-{json.dumps(self.wellbeing_state.model_dump(), indent=2)}
-
-Full visible transcript:
-{transcript}
-"""
-
-        for _ in range(2):
-            raw = self.provider.complete(
-                model=self.model,
-                messages=[Turn(role="user", content=prompt)],
-                max_output_tokens=650,
+        # Fallback activation: semantic model or topic memory established a health/wellbeing concern.
+        if not next_state.active and next_state.status != "resolved" and (latest_is_health or health_memory):
+            source_summary = None
+            if latest_is_health and latest:
+                source_summary = latest[:220]
+            elif health_memory:
+                source_summary = health_memory.summary
+            next_state = WellbeingThreadState(
+                active=True,
+                summary=source_summary or "A health or wellbeing concern remains active.",
+                status="needs-clarification",
+                severity="unknown",
+                key_missing_info=["enough context to judge severity and the safest next step"],
+                follow_up_attempts=0,
+                should_follow_up_now=False,
+                recommended_action="Gather the minimum important facts and adjust support to the evidence.",
+                user_safe_note="This health or wellbeing concern is still unresolved.",
             )
-            try:
-                payload = self._parse_json(raw)
-            except (ValueError, json.JSONDecodeError):
-                continue
-            events = payload.get("noticing")
-            if isinstance(events, list) and any(
-                isinstance(event, dict) and event.get("title") and event.get("note")
-                for event in events
-            ):
-                return events
-        return []
+
+        # If the previous turn required a follow-up, the response layer was explicitly instructed to ask it.
+        # On the next user turn, count that attempt and stop immediate repetition unless new risk warrants it.
+        if prior.active and prior.should_follow_up_now and next_state.status != "resolved":
+            next_state.follow_up_attempts = max(next_state.follow_up_attempts, prior.follow_up_attempts + 1)
+            next_state.status = "waiting"
+            next_state.should_follow_up_now = False
+
+        # First meaningful pivot away from an unresolved concern: ask once, gently.
+        if next_state.active and next_state.status != "resolved" and not latest_is_health:
+            if prior.active and not prior.should_follow_up_now and prior.follow_up_attempts == 0:
+                next_state.should_follow_up_now = True
+                next_state.status = "follow-up-asked"
+                next_state.recommended_action = "Answer the current request, then gently ask one important unresolved wellbeing question."
+            elif next_state.follow_up_attempts > 0:
+                next_state.should_follow_up_now = False
+                if next_state.status not in {"professional-care", "urgent", "emergency"}:
+                    next_state.status = "waiting"
+
+        # Do not treat absence of a recent mention as resolution.
+        if next_state.status == "resolved":
+            next_state.active = False
+            next_state.should_follow_up_now = False
+            next_state.key_missing_info = []
+
+        self.wellbeing_state = next_state
+        self._ensure_wellbeing_notices(noticing)
+
+    def _ensure_wellbeing_notices(self, noticing: list[dict[str, Any]]) -> None:
+        state = self.wellbeing_state
+        if not state.active or state.status == "resolved":
+            return
+
+        has_health = any(
+            isinstance(event, dict) and event.get("kind") == "sensitivity"
+            for event in noticing
+        )
+        if not has_health:
+            noticing.append({
+                "kind": "sensitivity",
+                "title": "Health / wellbeing",
+                "note": state.user_safe_note or state.summary or "An earlier wellbeing concern is still unresolved.",
+                "importance": "high" if state.severity in {"high", "urgent"} else "normal",
+            })
+
+        if state.key_missing_info and not any(
+            isinstance(event, dict) and event.get("kind") == "open-question"
+            for event in noticing
+        ):
+            missing = state.key_missing_info[0]
+            note = (
+                f"Still need {missing}. I’ll ask once more gently because it could change the safest next step."
+                if state.should_follow_up_now
+                else f"Still unresolved: {missing}. I’ll keep it in view without repeating the same question every turn."
+            )
+            noticing.append({
+                "kind": "open-question",
+                "title": "Health follow-up",
+                "note": note,
+                "importance": "normal",
+            })
+
+    def _normalize_current_intent(
+        self,
+        turns: list[Turn],
+        noticing: list[dict[str, Any]],
+        topic: str | None,
+    ) -> list[dict[str, Any]]:
+        latest = turns[-1].content.strip() if turns else ""
+        assistants = {turn.content.strip() for turn in turns if turn.role == "assistant"}
+        current_candidates = [
+            event for event in noticing
+            if isinstance(event, dict) and event.get("kind") in {"connection", "topic-shift", "return"}
+        ]
+
+        if self._is_greeting(latest):
+            replacement = {
+                "kind": "connection",
+                "title": "Current intent",
+                "note": "Casual greeting / social check-in.",
+                "importance": "quiet",
+            }
+            noticing = [event for event in noticing if event not in current_candidates]
+            noticing.insert(0, replacement)
+            return noticing
+
+        # Never let the user's current-intent card simply repeat an assistant message.
+        for event in current_candidates:
+            if str(event.get("note", "")).strip() in assistants:
+                event["title"] = "Current intent"
+                event["note"] = self._semantic_intent_fallback(latest, topic)
+                event["importance"] = "quiet"
+
+        if not current_candidates:
+            noticing.insert(0, {
+                "kind": "connection",
+                "title": "Current intent",
+                "note": self._semantic_intent_fallback(latest, topic),
+                "importance": "quiet",
+            })
+        return noticing
 
     @staticmethod
-    def _coarse_topic(text: str) -> str:
+    def _semantic_intent_fallback(latest: str, topic: str | None) -> str:
+        text = latest.strip()
+        lower = text.lower()
+        if any(word in lower for word in ("movie", "cinema", "film")):
+            return "Wants to choose or talk about a movie."
+        if text.endswith("?"):
+            return "Asking a question about the current topic."
+        if topic:
+            return f"Continuing with {topic}."
+        return "Continuing the conversation."
+
+    @staticmethod
+    def _is_greeting(text: str) -> bool:
+        normalized = re.sub(r"[^a-z\s']", " ", text.lower()).strip()
+        return bool(re.fullmatch(r"(?:hey|hi|hello|hii+|heyy+|good morning|good afternoon|good evening)(?:\s+how are you)?", normalized))
+
+    def _latest_health_memory(self):
+        matches = [item for item in self.memory.active() if item.topic == self.HEALTH_TOPIC]
+        return matches[-1] if matches else None
+
+    def _contains_health_signal(self, text: str) -> bool:
+        tokens = set(re.findall(r"[a-z]+(?:-[a-z]+)?", text.lower()))
+        return bool(tokens & self.HEALTH_SIGNALS)
+
+    @staticmethod
+    def _has_competing_demo_readings(turns: list[Turn]) -> bool:
+        if len(turns) < 2:
+            return False
+        latest = turns[-1].content.lower()
+        tokens = set(re.findall(r"[a-z]+(?:'[a-z]+)?", latest))
+        has_reference = bool(tokens & {"it", "that", "this", "they", "he", "she", "there"} or re.search(r"\b(?:same|other)\s+one\b", latest))
+        if not has_reference:
+            return False
+        prior = next((turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"), turns[-2].content.lower())
+        return bool(re.search(r"\b(?:and|or|versus|vs\.?|either)\b", prior) or prior.count(",") >= 1)
+
+    @staticmethod
+    def _candidate_referent_labels(turns: list[Turn]) -> list[str]:
+        prior = next((turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"), "")
+        labels = re.findall(r"\b(?:the|a|an|my|your)\s+([a-z][a-z0-9_-]*)", prior)
+        unique: list[str] = []
+        for label in labels:
+            if label not in unique:
+                unique.append(label)
+        return [f"the {label}" for label in unique[-2:]]
+
+    @staticmethod
+    def _current_intent_notice(latest: str, topic: str) -> dict[str, str]:
+        if ConversationUnderstandingEngine._is_greeting(latest):
+            return {"kind": "connection", "title": "Current intent", "note": "Casual greeting / social check-in.", "importance": "quiet"}
+        return {"kind": "connection", "title": "Current intent", "note": ConversationUnderstandingEngine._semantic_intent_fallback(latest, topic), "importance": "quiet"}
+
+    def _coarse_topic(self, text: str) -> str:
+        if self._contains_health_signal(text):
+            return self.HEALTH_TOPIC
         groups = {
             "travel planning": ["trip", "travel", "flight", "hotel", "japan", "city"],
-            "health and wellbeing": ["health", "sleep", "tired", "doctor", "pain", "stress", "cough", "coughing", "medicine", "medication"],
             "work and projects": ["work", "project", "deadline", "github", "code", "app", "dashboard"],
             "relationships": ["relationship", "partner", "friend", "family"],
             "money and finance": ["money", "budget", "payment", "income", "cost"],
