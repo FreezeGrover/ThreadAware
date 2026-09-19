@@ -60,6 +60,47 @@ def test_demo_chat_remains_available_without_live_model(monkeypatch):
     assert 'api key' not in payload['reply'].lower()
 
 
+def test_chat_contract_always_returns_renderable_noticing_in_demo(monkeypatch):
+    """Regression test for the right-hand 'What I'm noticing' panel contract."""
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    response = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': 'pytest-noticing-a',
+            'messages': [{'role': 'user', 'content': 'heyyy'}],
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    noticing = payload['understanding']['noticing']
+    assert isinstance(noticing, list)
+    assert len(noticing) >= 1
+    assert noticing[0]['title']
+    assert noticing[0]['note']
+
+
+def test_workspace_memories_are_isolated(monkeypatch):
+    """A judge/browser workspace must never inherit another workspace's state."""
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    a = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': 'pytest-workspace-a',
+            'messages': [{'role': 'user', 'content': 'I want to plan a trip to Japan.'}],
+        },
+    )
+    b = client.post(
+        '/api/chat',
+        json={
+            'workspace_id': 'pytest-workspace-b',
+            'messages': [{'role': 'user', 'content': 'hello'}],
+        },
+    )
+    assert a.status_code == 200
+    assert b.status_code == 200
+    assert 'japan' not in str(client.get('/api/memory?workspace_id=pytest-workspace-b').json()).lower()
+
+
 def test_initial_state_does_not_ship_storyboard_example_content():
     state = client.get('/api/state').json()
     serialized = str(state).lower()
