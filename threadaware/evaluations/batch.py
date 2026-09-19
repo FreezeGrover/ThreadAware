@@ -22,8 +22,9 @@ class BatchRunner:
         live: bool = False,
         max_turns: int | None = None,
     ) -> dict[str, Any]:
-        if repeats < 1 or repeats > 20:
-            raise ValueError("repeats must be between 1 and 20")
+        configured_max = max(1, int(os.getenv("THREADAWARE_MAX_BATCH_RUNS", "25")))
+        if repeats < 1 or repeats > configured_max:
+            raise ValueError(f"repeats must be between 1 and {configured_max}")
 
         scenario = next((item for item in SCENARIOS if item.id == scenario_id), None)
         if scenario is None:
