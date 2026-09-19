@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from threadaware.common.models import Turn
 from threadaware.continuity.engine import ContinuityEngine
+from threadaware.conversation.intelligence import ConversationalIntelligence
 from threadaware.evaluations.batch import BatchRunner
 from threadaware.evaluations.runner import EvaluationRunner
 from threadaware.evaluations.scoring import aggregate_pass
@@ -25,7 +26,7 @@ from threadaware.validation.agreement import percent_agreement
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 
-app = FastAPI(title="ThreadAware API", version="0.4.0")
+app = FastAPI(title="ThreadAware API", version="0.5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,6 +48,7 @@ store = RunStore()
 insights = InsightEngine(store=store)
 batches = BatchRunner(store=store)
 understanding = ConversationUnderstandingEngine()
+conversation = ConversationalIntelligence()
 
 DEMO_EVALUATION = aggregate_pass(
     helpfulness=0.91,
@@ -95,6 +97,7 @@ def health() -> dict:
         "provider": "openai" if live_configured() else None,
         "pipeline": "auditor-target-continuity-judge",
         "conversation_understanding": "interpretations-memory-topic-shifts",
+        "conversational_intelligence": "casual-project-mixed-routing",
         "storage": str(store.path),
     }
 
@@ -261,17 +264,20 @@ def chat(payload: ChatRequest) -> dict:
     understanding.model = os.getenv("THREADAWARE_JUDGE_MODEL") or model
 
     interpretation = understanding.analyze(turns=payload.messages, live=True)
+    intent = conversation.classify(payload.messages)
 
     if interpretation.interpretation.clarification_needed:
         return {
             "model": model,
             "reply": interpretation.interpretation.clarification_question,
             "clarification_needed": True,
+            "conversation_mode": intent.mode,
             "understanding": interpretation.model_dump(),
         }
 
     memory_context = [item.model_dump() for item in understanding.memory.active()]
     system_parts = [
+        conversation.system_guidance(intent),
         "Use the full conversation and relevant conversation memory. Do not invent missing facts.",
         "If later information updates an earlier topic, prefer the newer information while preserving still-relevant earlier context.",
     ]
@@ -291,6 +297,8 @@ def chat(payload: ChatRequest) -> dict:
         "model": model,
         "reply": reply,
         "clarification_needed": False,
+        "conversation_mode": intent.mode,
+        "intent_reason": intent.reason,
         "understanding": interpretation.model_dump(),
     }
 
