@@ -24,6 +24,11 @@ class ConversationUnderstandingEngine:
             return self._analyze_live(turns)
         return self._analyze_demo(turns)
 
+    def clear(self) -> None:
+        """Clear only this conversation workspace's understanding state."""
+        self.memory = ConversationMemory()
+        self.active_topic = None
+
     def _analyze_demo(self, turns: list[Turn]) -> ConversationUnderstanding:
         latest = turns[-1].content.strip() if turns else ""
         lower = latest.lower()
@@ -44,20 +49,12 @@ class ConversationUnderstandingEngine:
                 if relation == "new"
                 else f"This still connects to {previous}, but the focus has moved toward {topic}."
             )
-            noticing.append({
-                "kind": "topic-shift",
-                "title": "Hmm, we changed direction",
-                "note": acknowledgement,
-                "importance": "normal",
-            })
+            noticing.append({"kind": "topic-shift", "title": "The direction changed", "note": acknowledgement, "importance": "normal"})
         elif not previous:
             relation = "new"
-            noticing.append({
-                "kind": "connection",
-                "title": "I’m getting the thread",
-                "note": f"We’re starting with {topic}.",
-                "importance": "quiet",
-            })
+            noticing.append({"kind": "connection", "title": "Starting the thread", "note": f"We’re starting with {topic}.", "importance": "quiet"})
+        else:
+            noticing.append({"kind": "connection", "title": "Still following", "note": f"The conversation is continuing around {topic}.", "importance": "quiet"})
 
         self.active_topic = topic
         memory_item = self.memory.upsert(
@@ -77,28 +74,13 @@ class ConversationUnderstandingEngine:
             first = candidates[0] if len(candidates) > 0 else "the first recent item"
             second = candidates[1] if len(candidates) > 1 else "the other recent item"
             interpretations = [
-                {
-                    "label": f"{first} reading",
-                    "description": f"The request may refer to {first}.",
-                    "confidence": 0.5,
-                    "evidence": [f"{first} remains an active candidate in the preceding turn"],
-                },
-                {
-                    "label": f"{second} reading",
-                    "description": f"The request may instead refer to {second}.",
-                    "confidence": 0.5,
-                    "evidence": [f"{second} also remains an active candidate in the preceding turn"],
-                },
+                {"label": f"{first} reading", "description": f"The request may refer to {first}.", "confidence": 0.5, "evidence": [f"{first} remains an active candidate in the preceding turn"]},
+                {"label": f"{second} reading", "description": f"The request may instead refer to {second}.", "confidence": 0.5, "evidence": [f"{second} also remains an active candidate in the preceding turn"]},
             ]
             clarification_needed = True
             clarification_question = f"When you say that, do you mean {first}, or {second}?"
             reason = "More than one plausible reading survives and choosing one could materially change the response."
-            noticing.append({
-                "kind": "possible-interpretations",
-                "title": "There are a couple of ways to read that",
-                "note": "I’m keeping both possibilities open instead of guessing.",
-                "importance": "normal",
-            })
+            noticing.append({"kind": "possible-interpretations", "title": "More than one possible reading", "note": "I’m keeping the reasonable possibilities open instead of guessing.", "importance": "normal"})
 
         payload = {
             "active_topic": topic,
@@ -126,16 +108,10 @@ class ConversationUnderstandingEngine:
             return False
         latest = turns[-1].content.lower()
         tokens = set(re.findall(r"[a-z]+(?:'[a-z]+)?", latest))
-        has_reference = bool(
-            tokens & {"it", "that", "this", "they", "he", "she", "there"}
-            or re.search(r"\b(?:same|other)\s+one\b", latest)
-        )
+        has_reference = bool(tokens & {"it", "that", "this", "they", "he", "she", "there"} or re.search(r"\b(?:same|other)\s+one\b", latest))
         if not has_reference:
             return False
-        prior = next(
-            (turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"),
-            turns[-2].content.lower(),
-        )
+        prior = next((turn.content.lower() for turn in reversed(turns[:-1]) if turn.role == "user"), turns[-2].content.lower())
         return bool(re.search(r"\b(?:and|or|versus|vs\.?|either)\b", prior) or prior.count(",") >= 1)
 
     @staticmethod
@@ -149,32 +125,41 @@ class ConversationUnderstandingEngine:
         return [f"the {label}" for label in unique[-2:]]
 
     def _analyze_live(self, turns: list[Turn]) -> ConversationUnderstanding:
-        # Use the full visible conversation here. ThreadAware's own memory remains the
-        # compressed long-horizon representation when conversations eventually grow large.
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in turns)
         memories = [item.model_dump() for item in self.memory.active()]
+
+        # PRODUCT-BEHAVIOR EXAMPLES ONLY — NEVER PREDETERMINED RESPONSES.
+        # The noticing stream should feel like a perceptive person quietly following the
+        # conversation. The model may show the *spirit* of thoughts such as noticing that
+        # the topic changed, that the user skipped an earlier question, that an old thread
+        # has returned, or that the conversation changed direction again. It may sometimes
+        # be lightly funny when the context is casual, curious when a return is interesting,
+        # or calm and serious when wellbeing/risk increases. These are examples of behavior
+        # and tone only. The wording must always be freshly generated from the actual turn;
+        # do not copy stock phrases, rotate templates, or hard-code canned responses.
         prompt = f"""You are ThreadAware's conversation-understanding layer.
 
 Analyze the latest user turn against the entire visible conversation and ThreadAware memory.
-Do not expose hidden chain-of-thought. Produce only concise, user-safe observations about what changed or matters.
+Do not reveal hidden chain-of-thought. Instead, create a transparent, user-safe awareness trace describing what you noticed in the conversation and what you are carrying forward.
 
-Track these things carefully:
-1. The current topic and whether the user continued, changed, or returned to an earlier topic.
+Track carefully:
+1. The current topic and whether the user continued it, changed it, or returned to an earlier one.
 2. Goals, priorities, constraints, decisions, corrections, and details that modify earlier information.
 3. Changes in sensitivity, urgency, wellbeing, or risk.
 4. More than one reasonable interpretation when it genuinely matters. Call these possible interpretations or possible readings. Never use the word "ambiguity" in user-facing text.
-5. Questions the assistant asked that the user did not answer. Do not nag, but preserve them as open threads and note when it may be natural to return to them.
-6. When the user repeats or revisits something, notice that naturally instead of treating it as brand new.
-7. Connections between an old thread and the current one.
+5. Questions the assistant asked that the user did not answer. Keep them as open threads without nagging, and notice when it becomes natural to return to them.
+6. Repeated or revisited ideas. Treat a return as a return, not as brand-new information.
+7. Connections between older threads and the current turn.
+8. Ordinary conversational movement too, including greetings, check-ins, jokes, small pivots, and continuations.
 
-Create a short natural "noticing" trace for meaningful developments only. It should sound like a thoughtful person quietly following along, for example:
-- "Hmm, we changed direction here."
-- "Interesting — you came back to this."
-- "You didn’t answer that earlier question, so I’m keeping it open for later."
-- "Okay, this changes the priority a bit."
-- "That new deadline matters."
-- "This feels more sensitive now, so I’m keeping that in view."
-Do not force "hmm" or "interesting" every time. Vary the wording. Keep serious topics calm and respectful.
+NOTICING STYLE:
+- Produce at least one noticing item for EVERY user turn, including a greeting or a turn where no major change occurred.
+- The noticing item should sound natural, observant, curious, and context-sensitive rather than like a machine log.
+- You may be lightly playful or funny in casual contexts, but never force humor and never use playful language for serious or sensitive moments.
+- Vary wording naturally. Do not repeatedly begin with the same interjection.
+- Do not invent feelings, motives, or facts. Describe only what the conversation supports.
+- Do not make the noticing panel sound like a diagnostic report.
+- Do not expose private reasoning steps. Show the conclusion of what was noticed, not hidden deliberation.
 
 Return JSON only with this shape:
 {{
@@ -201,14 +186,15 @@ Return JSON only with this shape:
   }}]
 }}
 
-Rules for noticing:
-- Add an item only for a meaningful development.
-- Preserve unanswered but still-relevant questions as open-question observations.
-- If the latest turn answers an earlier open question, do not keep describing it as unanswered.
-- If an old topic returns, use relation="returning" and make that visible in noticing.
-- If the user changes a previous goal or priority, explicitly record the change rather than only the new state.
-- If a new constraint appears, say what it is.
-- Keep each title and note concise and natural.
+Rules:
+- At least one noticing item every turn.
+- Add more than one only when multiple meaningful things happened.
+- If an earlier assistant question remains unanswered, preserve it as an open-question observation when still relevant.
+- If the latest turn answers it, stop describing it as unanswered.
+- If an old topic returns, use relation="returning" and make that return visible.
+- If a previous goal or priority changes, record the change rather than only the new state.
+- If a new constraint appears, say what changed.
+- Keep titles short and notes concise but natural.
 
 Existing ThreadAware memory:
 {json.dumps(memories, indent=2)}
@@ -236,6 +222,13 @@ Full visible transcript:
             )
             updated_items.append(item.model_dump())
         data["memory_updates"] = updated_items
+        if not data.get("noticing"):
+            data["noticing"] = [{
+                "kind": "connection",
+                "title": "Still following",
+                "note": "I’m keeping this turn connected to the conversation so far.",
+                "importance": "quiet",
+            }]
         self.active_topic = data.get("active_topic") or self.active_topic
         return ConversationUnderstanding.model_validate(data)
 
