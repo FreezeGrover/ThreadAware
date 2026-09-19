@@ -38,8 +38,28 @@ class TopicShift(BaseModel):
     acknowledgement: str | None = None
 
 
+class NoticingEvent(BaseModel):
+    kind: Literal[
+        "topic-shift",
+        "return",
+        "goal-change",
+        "priority-change",
+        "constraint",
+        "sensitivity",
+        "open-question",
+        "possible-interpretations",
+        "memory-update",
+        "connection",
+        "other",
+    ] = "other"
+    title: str
+    note: str
+    importance: Literal["quiet", "normal", "high"] = "normal"
+
+
 class ConversationUnderstanding(BaseModel):
     active_topic: str | None = None
     memory_updates: list[MemoryItem] = Field(default_factory=list)
     interpretation: InterpretationAssessment = Field(default_factory=InterpretationAssessment)
     topic_shift: TopicShift = Field(default_factory=TopicShift)
+    noticing: list[NoticingEvent] = Field(default_factory=list)
