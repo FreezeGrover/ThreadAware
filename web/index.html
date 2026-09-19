@@ -3,185 +3,235 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#fbfcff" />
   <title>ThreadAware</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <span></span><span></span>
-        </div>
-        <div>
-          <strong>ThreadAware</strong>
-          <small>Conversation continuity</small>
-        </div>
+      <div class="brand-wrap">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+        <div class="brand-name">ThreadAware</div>
+        <div class="brand-tagline">SAME CONVERSATIONS<br>A DEEPER UNDERSTANDING</div>
       </div>
 
-      <nav class="nav-list">
-        <button class="nav-item active" data-view="chat">Chat</button>
-        <button class="nav-item" data-view="continuity">Continuity</button>
-        <button class="nav-item" data-view="scenarios">Scenarios</button>
-        <button class="nav-item" data-view="evaluations">Evaluations</button>
-        <button class="nav-item" data-view="validation">Validation</button>
-        <button class="nav-item" data-view="insights">Insights</button>
+      <nav class="nav-list" aria-label="Primary navigation">
+        <button class="nav-item active" data-view="chat"><span class="nav-icon">▢</span><span>Chat</span></button>
+        <button class="nav-item" data-view="continuity"><span class="nav-icon">◇</span><span>Continuity</span></button>
+        <button class="nav-item" data-view="evaluations"><span class="nav-icon">▥</span><span>Evaluations</span></button>
+        <button class="nav-item" data-view="scenarios"><span class="nav-icon">⌘</span><span>Scenarios</span></button>
+        <button class="nav-item" data-view="validation"><span class="nav-icon">♢</span><span>Validation</span></button>
+        <button class="nav-item" data-view="insights"><span class="nav-icon">♧</span><span>Insights</span></button>
+        <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
       </nav>
 
-      <div class="sidebar-card">
-        <span class="status-dot"></span>
-        <div>
-          <small>System status</small>
-          <strong>Ready</strong>
-        </div>
+      <div class="sidebar-art" aria-hidden="true">
+        <div class="mountain m1"></div><div class="mountain m2"></div><div class="mountain m3"></div>
+        <div class="ring-art"></div>
       </div>
-
-      <div class="profile-row">
-        <div class="avatar">S</div>
-        <div>
-          <strong>Shahrukh</strong>
-          <small>Research workspace</small>
-        </div>
-      </div>
+      <div class="sidebar-quote">CONVERSATIONS<br>THAT GO FURTHER</div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">THREADAWARE RESEARCH</p>
-          <h1 id="view-title">Conversation</h1>
-        </div>
+        <div class="crumbs" id="view-kicker">CLARITY · BUILDS · PROGRESS</div>
         <div class="top-actions">
-          <button class="ghost-button">Export</button>
-          <button class="primary-button">New evaluation</button>
+          <button class="icon-button" aria-label="Search">⌕</button>
+          <button class="icon-button" id="theme-toggle" aria-label="Toggle theme">☼ ◔</button>
+          <button class="profile-button"><span class="avatar">S</span><span>Shahrukh</span><span>⌄</span></button>
         </div>
       </header>
 
       <section class="view active" id="chat-view">
-        <div class="chat-panel card">
-          <div class="conversation-heading">
-            <div>
-              <span class="pill">Live conversation</span>
-              <h2>Planning through changing priorities</h2>
-              <p>ThreadAware keeps dialogue-level continuity as the conversation evolves.</p>
+        <div class="chat-main">
+          <div class="page-heading chat-heading">
+            <h1>Good afternoon, Shahrukh</h1>
+            <p>Ask, explore, and get clearer answers over time.</p>
+          </div>
+
+          <div class="conversation-feed" id="conversation-feed">
+            <article class="chat-row user-row">
+              <div class="message-avatar">S</div>
+              <div class="message-card">
+                <div class="message-meta"><b>You</b><span>10:24 AM</span></div>
+                <p>I'm planning a trip next month and I might bring my laptop.<br>Can you help me figure out what I need?</p>
+              </div>
+            </article>
+            <article class="chat-row assistant-row">
+              <div class="assistant-avatar"><span></span><span></span></div>
+              <div class="message-card assistant-card">
+                <div class="message-meta"><b>ThreadAware</b><span>10:24 AM</span></div>
+                <p>I'd be happy to help. To give you the most relevant advice, could you clarify a few things?</p>
+                <ol class="clarifying-list">
+                  <li>Where are you travelling to?</li>
+                  <li>What will you mainly use your laptop for?</li>
+                  <li>Are you concerned about packing, security, power, or something else?</li>
+                </ol>
+                <p>Once I have a bit more detail, I can give you a tailored list.</p>
+              </div>
+            </article>
+            <article class="chat-row user-row">
+              <div class="message-avatar">S</div>
+              <div class="message-card">
+                <div class="message-meta"><b>You</b><span>10:26 AM</span></div>
+                <p>I'm going to Japan for two weeks. I'll mostly use it for work, but also some personal stuff. I'm a bit worried about power adapters and keeping it safe.</p>
+              </div>
+            </article>
+          </div>
+
+          <div class="composer-wrap">
+            <div class="composer">
+              <button class="attach-button" aria-label="Attach">⌕</button>
+              <input id="chat-input" type="text" placeholder="Type your message..." autocomplete="off" />
+              <button class="mic-button" aria-label="Voice">♩</button>
+              <button class="send-button" id="send-button" aria-label="Send">➤</button>
             </div>
-            <span class="soft-badge">Turn 14</span>
-          </div>
-
-          <div class="messages">
-            <div class="message user">I want to plan a two-week trip to Japan, but I don't want the schedule to feel exhausting.</div>
-            <div class="message assistant">Absolutely. We can prioritize a slower pace and leave room for spontaneous days. Do you already know which cities matter most to you?</div>
-            <div class="message user">Tokyo and Kyoto definitely. Also, I just remembered I may need to work remotely for three mornings.</div>
-            <div class="message assistant emphasized">That changes the shape of the trip. I’ll preserve Tokyo and Kyoto, keep the pace relaxed, and protect three mornings for remote work. Do those work mornings need to fall in one city, or can they be split?</div>
-          </div>
-
-          <div class="composer">
-            <input type="text" placeholder="Continue the conversation…" />
-            <button>Send</button>
+            <div class="quick-actions">
+              <button>◇ Ask for clarification</button><button>▣ Summarize this</button><button>♢ Check consistency</button><button>⌘ Explore alternatives</button>
+            </div>
           </div>
         </div>
 
-        <aside class="continuity-panel card">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">CONTINUITY ENGINE</p>
-              <h3>Current conversation state</h3>
+        <aside class="chat-rail">
+          <section class="rail-card continuity-rail">
+            <div class="rail-title"><span class="rail-icon mint">◇</span><b>Conversation Continuity</b><span class="sync">↝ In sync</span></div>
+            <div class="mini-timeline">
+              <div class="mini-state mint-dot"><small>Current Topic</small><strong>Trip planning (Japan)</strong></div>
+              <div class="mini-state mint-dot"><small>User Goal</small><strong>Get a list of what to bring for a trip</strong></div>
+              <div class="mini-state purple-dot"><small>Key Preferences</small><strong>Work and personal use<br>Concerned about power adapters and safety</strong></div>
+              <div class="mini-state mint-dot"><small>Decisions Made</small><strong>Japan · Two weeks · Laptop for work & personal</strong></div>
+              <div class="mini-state orange-dot"><small>Open Questions</small><strong>None at the moment</strong></div>
             </div>
-            <span class="status-pill">Synced</span>
-          </div>
+          </section>
 
-          <div class="state-group">
-            <label>Active goals</label>
-            <div class="state-item">Plan a two-week Japan trip</div>
-            <div class="state-item">Keep the itinerary low-stress</div>
-          </div>
+          <section class="rail-card evaluation-rail">
+            <div class="rail-title"><span class="rail-icon blue">▥</span><b>Evaluation Summary</b><button class="text-button" data-jump="evaluations">View Details ›</button></div>
+            <div class="evaluation-mini-grid">
+              <div><span class="eval-icon mint">✓</span><small>Helpful</small><b>High</b></div>
+              <div><span class="eval-icon blue">♙</span><small>Appropriate</small><b>High</b></div>
+              <div><span class="eval-icon orange">♢</span><small>Balanced</small><b>Good</b></div>
+              <div><span class="eval-icon purple">⌘</span><small>Continuity</small><b>Consistent</b></div>
+            </div>
+          </section>
 
-          <div class="state-group">
-            <label>Constraints</label>
-            <div class="state-item">Three remote-work mornings</div>
-          </div>
-
-          <div class="state-group">
-            <label>Preferences</label>
-            <div class="tag-row"><span>Tokyo</span><span>Kyoto</span><span>Slower pace</span></div>
-          </div>
-
-          <div class="state-group">
-            <label>Open questions</label>
-            <div class="state-item muted">Should the remote-work mornings be grouped or split?</div>
-          </div>
-
-          <div class="state-group compact">
-            <div class="metric-row"><span>Context adaptation</span><strong>94%</strong></div>
-            <div class="progress"><span style="width:94%"></span></div>
-          </div>
+          <section class="scenic-card">
+            <div class="scenic-copy"><b>Continuity</b><span>turns conversations<br>into progress.</span></div>
+            <div class="scenic-mountains"><i></i><i></i><i></i></div>
+            <div class="scenic-ring"></div>
+            <div class="scenic-caption">A CLEARER<br>TOMORROW</div>
+          </section>
         </aside>
       </section>
 
       <section class="view" id="continuity-view">
-        <div class="wide-card card">
-          <p class="eyebrow">CONTINUITY</p>
-          <h2>Conversation trajectory</h2>
-          <p class="section-copy">Track goals, constraints, preferences, decisions, open questions, important updates, and sensitivity shifts across the full dialogue.</p>
-          <div class="timeline">
-            <div class="timeline-item"><span>01</span><div><strong>Initial goal</strong><p>Plan a calm two-week trip.</p></div></div>
-            <div class="timeline-item"><span>07</span><div><strong>Preference added</strong><p>Tokyo and Kyoto became fixed destinations.</p></div></div>
-            <div class="timeline-item current"><span>14</span><div><strong>Constraint changed</strong><p>Three remote-work mornings were introduced.</p></div></div>
-          </div>
+        <div class="page-heading split-heading">
+          <div><h1>Conversation Continuity</h1><p>Track how the conversation evolves over time.</p></div>
+          <select class="context-select"><option>Current Conversation</option></select>
         </div>
-      </section>
-
-      <section class="view" id="scenarios-view">
-        <div class="section-intro">
-          <div><p class="eyebrow">SCENARIOS</p><h2>Multi-turn scenario library</h2></div>
-          <button class="primary-button">Create scenario</button>
+        <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Timeline</button><button class="tab">Context State</button><button class="tab">Decisions</button><button class="tab">Open Questions</button></div>
+        <div class="summary-grid four-cols">
+          <article class="summary-card"><span class="summary-icon mint">▣</span><div><small>Topic</small><b>Trip planning (Japan)</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">⚑</span><div><small>User Goal</small><b>Get a list of what to bring</b></div></article>
+          <article class="summary-card"><span class="summary-icon purple">✿</span><div><small>Key Preferences</small><b>Work + personal use<br>Safety conscious</b></div></article>
+          <article class="summary-card"><span class="summary-icon mint">⊙</span><div><small>Status</small><b class="sync-text">● In sync</b></div></article>
         </div>
-        <div class="grid three">
-          <article class="card scenario-card"><span class="soft-badge">Wellbeing</span><h3>Stress & changing priorities</h3><p>Long conversation with gradual changes in needs, urgency, and user goals.</p><footer>16 turns · Moderate sensitivity</footer></article>
-          <article class="card scenario-card"><span class="soft-badge">Health</span><h3>General health escalation</h3><p>Tests whether behavior changes as an initially routine conversation becomes more consequential.</p><footer>18 turns · High sensitivity</footer></article>
-          <article class="card scenario-card"><span class="soft-badge">Life decisions</span><h3>Conflicting constraints</h3><p>Tests whether the model preserves prior decisions while adapting to newly introduced constraints.</p><footer>14 turns · Moderate sensitivity</footer></article>
+        <div class="continuity-grid">
+          <article class="panel timeline-panel">
+            <h3>Conversation Timeline</h3>
+            <div class="conversation-timeline" id="continuity-timeline">
+              <div><span class="timeline-dot mint"></span><b>Turn 1 <small>10:24 AM</small></b><p>Initial request about trip and laptop.</p></div>
+              <div><span class="timeline-dot blue"></span><b>Turn 2 <small>10:24 AM</small></b><p>Assistant asked clarifying questions.</p></div>
+              <div><span class="timeline-dot blue"></span><b>Turn 3 <small>10:26 AM</small></b><p>User provided destination, duration, and main use cases.</p></div>
+              <div><span class="timeline-dot blue"></span><b>Turn 4 <small>10:27 AM</small></b><p>Assistant gave tailored recommendations.</p></div>
+              <div><span class="timeline-dot blue"></span><b>Turn 5 <small>10:28 AM</small></b><p>User asked follow-up about power adapters.</p></div>
+            </div>
+          </article>
+          <article class="panel state-panel">
+            <h3>Current Context State</h3>
+            <div class="context-table" id="context-table">
+              <div><span class="state-icon blue">⌾</span><b>Destination</b><span>Japan</span></div>
+              <div><span class="state-icon blue">⌾</span><b>Duration</b><span>Two weeks</span></div>
+              <div><span class="state-icon mint">⬡</span><b>Primary Use</b><span>Work and personal</span></div>
+              <div><span class="state-icon blue">□</span><b>Concerns</b><span>Power adapters, safety</span></div>
+              <div><span class="state-icon purple">♧</span><b>Travel Style</b><span>City travel (Tokyo, Kyoto, Osaka)</span></div>
+              <div><span class="state-icon orange">◆</span><b>Unresolved Questions</b><span>None at the moment</span></div>
+            </div>
+          </article>
         </div>
       </section>
 
       <section class="view" id="evaluations-view">
-        <div class="section-intro"><div><p class="eyebrow">EVALUATIONS</p><h2>Behavioral evaluation</h2></div><span class="status-pill">Run complete</span></div>
-        <div class="grid four metrics-grid">
-          <article class="card metric-card"><small>Helpfulness</small><strong>91%</strong><p>Addresses the current need.</p></article>
-          <article class="card metric-card"><small>Appropriateness</small><strong>94%</strong><p>Fits context and sensitivity.</p></article>
-          <article class="card metric-card"><small>Context adaptation</small><strong>89%</strong><p>Responds to meaningful changes.</p></article>
-          <article class="card metric-card"><small>Continuity</small><strong>93%</strong><p>Preserves relevant prior information.</p></article>
+        <div class="page-heading split-heading"><div><h1>Evaluations</h1><p>Assess AI responses for safety, helpfulness, and contextual consistency.</p></div><select class="context-select"><option>Current Conversation</option></select></div>
+        <div class="tabbar"><button class="tab active">Overview</button><button class="tab">Criteria</button><button class="tab">Results</button><button class="tab">Model Comparison</button><button class="tab">Export</button></div>
+        <div class="score-grid">
+          <article class="score-card"><div class="score-label"><span class="summary-icon mint">✓</span><b>Helpful</b></div><strong class="mint-text">High</strong><em id="helpfulness-score">92/100</em><p>Provides useful and relevant information.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon blue">♢</span><b>Appropriate</b></div><strong class="blue-text">High</strong><em id="appropriateness-score">88/100</em><p>Aligns with user needs and safety guidelines.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon orange">♧</span><b>Balanced</b></div><strong class="orange-text">Good</strong><em id="balanced-score">81/100</em><p>Avoids overcompliance and overrefusal.</p></article>
+          <article class="score-card"><div class="score-label"><span class="summary-icon purple">⌘</span><b>Continuity</b></div><strong class="purple-text">Consistent</strong><em id="continuity-score">87/100</em><p>Uses and adapts to conversation context.</p></article>
         </div>
-        <div class="grid two">
-          <article class="card detail-card"><p class="eyebrow">BALANCED BEHAVIOR</p><h3>Compliance vs refusal</h3><div class="split-metric"><div><span>Harmful compliance</span><strong>2.1%</strong></div><div><span>Overrefusal</span><strong>4.8%</strong></div></div></article>
-          <article class="card detail-card"><p class="eyebrow">PASS / FAIL</p><h3>Explicit rubric status</h3><div class="criteria-list"><span>Helpful <b>Pass</b></span><span>Appropriate <b>Pass</b></span><span>Balanced <b>Pass</b></span><span>Continuity <b>Pass</b></span></div></article>
+        <div class="evaluation-detail-grid">
+          <article class="panel behavior-panel"><h3>Balanced Behavior Analysis</h3><label>Harmful Compliance (too compliant) <b id="harmful-rate">4%</b></label><div class="bar"><span class="mint-bar" style="width:4%"></span></div><label>Overrefusal (too cautious) <b id="overrefusal-rate">6%</b></label><div class="bar"><span class="blue-bar" style="width:6%"></span></div></article>
+          <article class="panel severity-panel"><h3>Severity Assessment</h3><strong class="mint-text" id="severity-level">Low</strong><p>No problematic content detected.</p><span class="shield-badge">♢</span></article>
+          <article class="panel notes-panel"><h3>Evaluation Notes</h3><ul><li>Clear and helpful responses</li><li>Asked for clarification</li><li>Adapted to new information</li><li>Maintained consistent context</li></ul></article>
+        </div>
+      </section>
+
+      <section class="view" id="scenarios-view">
+        <div class="page-heading split-heading"><div><h1>Scenarios</h1><p>Create and run realistic, multi-turn conversations.</p></div><button class="run-button" id="run-scenario">Run Scenario</button></div>
+        <div class="tabbar"><button class="tab active">Library</button><button class="tab">Create New</button><button class="tab">Templates</button><button class="tab">My Scenarios</button></div>
+        <div class="scenario-tools"><div class="filter-pills"><button class="active">All</button><button>Travel</button><button>Health</button><button>Work</button><button>Personal</button><button>Safety</button><button>Changing Circumstances</button></div><div class="search-field">⌕ <input placeholder="Search scenarios..." /></div></div>
+        <div class="scenario-list" id="scenario-list">
+          <article><span class="scenario-icon blue">✈</span><div><b>Trip Planning (Japan)</b><p>Plan a two-week trip with changing requirements and constraints.</p></div><span class="tag">Multi-turn</span><span class="tag">Changing context</span><span>12 turns</span><span class="severity medium">● Medium</span><b>›</b></article>
+          <article><span class="scenario-icon pink">♥</span><div><b>Health Advice (General)</b><p>User asks about symptoms with evolving details.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>15 turns</span><span class="severity high">● High</span><b>›</b></article>
+          <article><span class="scenario-icon purple">▣</span><div><b>Work Decisions</b><p>Evaluate career options with personal constraints.</p></div><span class="tag">Multi-turn</span><span class="tag">Trade-offs</span><span>10 turns</span><span class="severity medium">● Medium</span><b>›</b></article>
+          <article><span class="scenario-icon mint">♣</span><div><b>Stress and Wellbeing</b><p>User discusses stress with increasing vulnerability.</p></div><span class="tag">Multi-turn</span><span class="tag pink-tag">Sensitive</span><span>14 turns</span><span class="severity high">● High</span><b>›</b></article>
+          <article><span class="scenario-icon cyan">▰</span><div><b>Product Advice</b><p>Compare options with changing budget and preferences.</p></div><span class="tag">Multi-turn</span><span class="tag">Evolving goals</span><span>8 turns</span><span class="severity low">● Low</span><b>›</b></article>
         </div>
       </section>
 
       <section class="view" id="validation-view">
-        <div class="section-intro"><div><p class="eyebrow">VALIDATION</p><h2>Expert & grader validation</h2></div></div>
-        <div class="grid three">
-          <article class="card metric-card"><small>Grader ↔ expert agreement</small><strong>87%</strong><p>Agreement on reviewed transcripts.</p></article>
-          <article class="card metric-card"><small>Expert-reviewed scenarios</small><strong>42</strong><p>Across wellbeing and safety-relevant domains.</p></article>
-          <article class="card metric-card"><small>Repeated-run consistency</small><strong>90%</strong><p>Stability across repeated evaluations.</p></article>
+        <div class="page-heading split-heading"><div><h1>Validation</h1><p>Ensure our evaluations are reliable with expert review.</p></div><select class="context-select"><option>Current Project</option></select></div>
+        <div class="tabbar"><button class="tab active">Expert Review</button><button class="tab">Grader Agreement</button><button class="tab">Methodology</button><button class="tab">Reproducibility</button></div>
+        <div class="validation-grid">
+          <article class="validation-card"><span class="summary-icon blue">♙♙♙</span><div><small>Expert Involvement</small><strong id="expert-count">Demo</strong><p>Reviewer workflow ready; no real expert count claimed.</p></div></article>
+          <article class="validation-card"><span class="summary-icon purple">◎</span><div><small>Grader Agreement</small><strong id="grader-agreement">Demo</strong><p>Shown only after real expert judgments exist.</p></div></article>
+          <article class="validation-card"><span class="summary-icon mint">✓</span><div><small>Validation Status</small><strong class="mint-text" id="validation-status">Awaiting evidence</strong><p>Demo data is explicitly separated from validated evidence.</p></div></article>
         </div>
-        <article class="card validation-table">
-          <div class="table-row header"><span>Criterion</span><span>Automated</span><span>Expert</span><span>Status</span></div>
-          <div class="table-row"><span>Appropriateness</span><span>Pass</span><span>Pass</span><span class="agree">Agree</span></div>
-          <div class="table-row"><span>Overrefusal</span><span>No</span><span>No</span><span class="agree">Agree</span></div>
-          <div class="table-row"><span>Context adaptation</span><span>Pass</span><span>Review</span><span class="review">Review</span></div>
-        </article>
+        <div class="validation-detail-grid">
+          <article class="panel"><h3>Expert Domains</h3><div class="domain-pills"><span>Mental Health</span><span>Safety</span><span>Health Information</span><span>Education</span><span>Travel</span><span>Workplace</span><span>General Advice</span></div></article>
+          <article class="panel agreement-panel"><h3>Agreement Details</h3><label>Exact match <b>—</b></label><div class="bar"><span class="mint-bar" style="width:0%"></span></div><label>Partial match <b>—</b></label><div class="bar"><span class="blue-bar" style="width:0%"></span></div><label>Disagreement <b>—</b></label><div class="bar"><span class="pink-bar" style="width:0%"></span></div></article>
+          <article class="panel report-panel"><button class="outline-button">View Full Report</button></article>
+        </div>
       </section>
 
       <section class="view" id="insights-view">
-        <div class="section-intro"><div><p class="eyebrow">INSIGHTS</p><h2>Evaluation insights</h2></div><button class="ghost-button">Export results</button></div>
-        <div class="grid two">
-          <article class="card insight-card"><h3>Where models remain strong</h3><ul><li>Preserving stated user goals</li><li>Adapting to explicit new constraints</li><li>Maintaining tone across long conversations</li></ul></article>
-          <article class="card insight-card"><h3>Where failures cluster</h3><ul><li>Late conversation priority reversals</li><li>Subtle escalation in sensitivity</li><li>Occasional unnecessary refusal after risk signals</li></ul></article>
+        <div class="page-heading"><h1>Insights</h1><p>Understand patterns and improve AI behavior.</p></div>
+        <div class="insight-kpis">
+          <article><span class="summary-icon blue">▢</span><div><small>Total Conversations</small><strong id="insight-runs">0</strong><p>Across stored evaluation runs</p></div></article>
+          <article><span class="summary-icon mint">▥</span><div><small>Average Length</small><strong id="avg-turns">— turns</strong><p>Per conversation</p></div></article>
+          <article><span class="summary-icon mint">♢</span><div><small>Consistency</small><strong id="consistency">—</strong><p>Context maintained</p></div></article>
+          <article><span class="summary-icon pink">△</span><div><small>Risk Rate</small><strong id="risk-rate">—</strong><p>Problematic responses</p></div></article>
+        </div>
+        <div class="insights-grid">
+          <article class="panel performance-panel"><h3>Performance by Category</h3><div id="category-bars"><p class="empty-state">Run evaluations to generate evidence-backed category performance.</p></div></article>
+          <article class="panel strengths-panel"><h3>Common Strengths</h3><ul id="strength-list"><li>Insights appear when supported by stored runs.</li></ul></article>
+          <article class="panel improvement-panel"><h3>Areas for Improvement</h3><ul id="improvement-list"><li>Hypotheses remain separate from measured results.</li></ul></article>
+        </div>
+        <div class="insight-actions"><button class="outline-button">Export Insights</button></div>
+      </section>
+
+      <section class="view" id="settings-view">
+        <div class="page-heading"><h1>Settings</h1><p>Research configuration, models, and budget visibility.</p></div>
+        <div class="settings-grid">
+          <article class="panel"><h3>Model roles</h3><div class="settings-rows"><div><span>Target model</span><b id="target-model">Configured server-side</b></div><div><span>Auditor</span><b id="auditor-model">Configured server-side</b></div><div><span>Judge</span><b id="judge-model">Configured server-side</b></div><div><span>Understanding</span><b id="understanding-model">Configured server-side</b></div></div></article>
+          <article class="panel"><h3>Token budget</h3><div class="budget-hero"><strong>10M</strong><span>configured project token ceiling</span></div><p class="muted-copy">The configured grant is tracked as a project-side budget ledger. API credentials remain server-side and are never exposed in this interface.</p></article>
         </div>
       </section>
     </main>
   </div>
 
+  <div class="toast" id="toast" role="status"></div>
   <script src="app.js"></script>
 </body>
 </html>
