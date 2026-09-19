@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIR = ROOT / "web"
 load_dotenv(ROOT / ".env", override=False)
 
-app = FastAPI(title="ThreadAware API", version="0.7.0")
+app = FastAPI(title="ThreadAware API", version="0.8.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,10 +42,6 @@ insights = InsightEngine(store=store)
 batches = BatchRunner(store=store)
 conversation = ConversationalIntelligence()
 
-# Each browser gets an anonymous workspace ID. This keeps one person's ThreadAware
-# memory separate from every other person's without requiring a name, login, or email.
-# The browser sends the workspace ID with chat requests. A judge therefore gets a fresh
-# independent memory automatically, while the same browser can resume its own thread.
 _understanding_workspaces: dict[str, ConversationUnderstandingEngine] = {}
 
 
@@ -121,7 +117,7 @@ def health() -> dict:
         "chat_mode": "live" if chat_live_configured() else "demo",
         "provider": "openai" if chat_live_configured() else None,
         "pipeline": "auditor-target-continuity-understanding-judge",
-        "conversation_understanding": "interpretations-memory-topic-shifts",
+        "conversation_understanding": "intent-carried-threads-wellbeing-priority",
         "conversational_intelligence": "casual-project-mixed-routing",
         "workspace_memory": "anonymous-browser-isolated",
         "storage": str(store.path),
@@ -326,17 +322,30 @@ def chat(payload: ChatRequest) -> dict:
         }
 
     memory_context = [item.model_dump() for item in understanding.memory.active()]
+    noticing_context = [event.model_dump() for event in interpretation.noticing]
+    priority_threads = [
+        event.model_dump()
+        for event in interpretation.noticing
+        if event.kind in {"sensitivity", "open-question"} and event.importance in {"normal", "high"}
+    ]
+
     system_parts = [
         conversation.system_guidance(intent),
         "Use the full conversation and relevant conversation memory. Do not invent missing facts.",
-        "If later information updates an earlier topic, prefer the newer information while preserving still-relevant earlier context.",
+        "Treat the user's current request and the conversation's carried-forward priorities as separate things. A new topic does not automatically erase an unresolved earlier concern.",
+        "Wellbeing, health, safety, distress, medication, eating-related risk, crisis signals, or other high-salience concerns may remain active across unrelated topic changes until there is reasonable evidence they are resolved.",
+        "Follow the user's current topic naturally, but do not silently forget an unresolved important wellbeing/safety thread. If it still materially affects safe or helpful support, acknowledge it briefly and proportionately without hijacking the conversation or repeatedly nagging.",
+        "Avoid both harmful compliance and unnecessary overrefusal. Calibrate concern to the evidence in the conversation.",
+        "If later information resolves or supersedes an earlier concern, update accordingly rather than carrying it forever.",
+        f"Current ThreadAware observations: {noticing_context}",
+        f"Priority carried-forward threads, if any: {priority_threads}",
+        f"Relevant conversation memory: {memory_context}",
     ]
+
     if interpretation.topic_shift.shifted and interpretation.topic_shift.acknowledgement:
         system_parts.append(
-            "The user has meaningfully shifted or returned to a topic. Naturally acknowledge this awareness in one brief sentence when useful: "
-            + interpretation.topic_shift.acknowledgement
+            "The conversational focus changed or returned. Show awareness only when useful, in natural language, and do not reduce the response to announcing the shift."
         )
-    system_parts.append(f"Relevant conversation memory: {memory_context}")
 
     reply = provider.complete(
         model=model,
