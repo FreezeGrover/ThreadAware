@@ -35,8 +35,7 @@
     if (!box) {
       box = document.createElement('div');
       box.className = 'tab-explainer';
-      const tabbar = section.querySelector('.tabbar');
-      tabbar?.insertAdjacentElement('afterend', box);
+      section.querySelector('.tabbar')?.insertAdjacentElement('afterend', box);
     }
     const [icon,title,copy] = explainers[view][tabName];
     box.innerHTML = `<span class="tab-explainer-icon">${icon}</span><div><b>${title}</b><p>${copy}</p></div>`;
@@ -82,25 +81,25 @@
   if (searchButton) {
     searchButton.title = 'Focus scenario search';
     searchButton.addEventListener('click', () => {
-      const scenariosNav = document.querySelector('.nav-item[data-view="scenarios"]');
-      scenariosNav?.click();
+      document.querySelector('.nav-item[data-view="scenarios"]')?.click();
       setTimeout(() => scenarioSearch?.focus(), 80);
     });
   }
 
   document.querySelectorAll('.outline-button').forEach((button) => {
     button.addEventListener('click', () => {
-      const label = button.textContent.trim();
       const toast = document.getElementById('toast');
       if (!toast) return;
-      toast.textContent = label.includes('Report') ? 'A validation report becomes available when evidence has been collected.' : 'Export becomes available when stored evidence exists.';
+      toast.textContent = button.textContent.trim().includes('Report')
+        ? 'A validation report becomes available when evidence has been collected.'
+        : 'Export becomes available when stored evidence exists.';
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 2600);
     });
   });
 
-  /* ThreadAware awareness stream: keep the entire visible history for this conversation. */
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  const shown = new Set();
   const toneFor = (kind, importance) => {
     if (importance === 'high' || kind === 'sensitivity') return 'orange';
     if (['return','possible-interpretations','open-question'].includes(kind)) return 'purple';
@@ -108,22 +107,40 @@
     return 'mint';
   };
 
-  window.addAwarenessNote = function(title, text, tone='mint', meta='') {
-    window.prepareAwarenessRail?.();
-    const list = document.querySelector('.continuity-rail .mini-timeline');
+  function ensureAwarenessRail() {
+    const rail = document.querySelector('.continuity-rail');
+    if (!rail) return null;
+    const title = rail.querySelector('.rail-title b');
+    if (title) title.textContent = 'What I’m noticing';
+    const sync = rail.querySelector('.sync');
+    if (sync) sync.textContent = '↝ Following along';
+    const list = rail.querySelector('.mini-timeline');
+    if (list && !list.dataset.awarenessReady) {
+      list.dataset.awarenessReady = '1';
+      list.innerHTML = '<div class="awareness-empty"><b>I’ll keep the thread with you.</b><span>Meaningful changes, returns, priorities, and open threads will appear here as we talk.</span></div>';
+    }
+    return list;
+  }
+
+  function addNotice(event) {
+    if (!event?.title || !event?.note) return;
+    const key = `${event.kind || ''}|${event.title}|${event.note}`;
+    if (shown.has(key)) return;
+    shown.add(key);
+    const list = ensureAwarenessRail();
     if (!list) return;
     list.querySelector('.awareness-empty')?.remove();
     const item = document.createElement('div');
-    item.className = `awareness-note ${tone}`;
+    item.className = `awareness-note ${toneFor(event.kind, event.importance)}`;
     const stamp = new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date());
-    item.innerHTML = `<span class="awareness-dot"></span><div><small>${esc(title)}</small><strong>${esc(text)}</strong><em>${esc(meta || stamp)}</em></div>`;
+    item.innerHTML = `<span class="awareness-dot"></span><div><small>${esc(event.title)}</small><strong>${esc(event.note)}</strong><em>${esc(stamp)}</em></div>`;
     list.appendChild(item);
-    item.scrollIntoView({behavior:'smooth',block:'nearest'});
-  };
+    item.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
 
-  window.applyUnderstanding = function(u) {
+  function renderNoticing(u) {
     if (!u) return;
-    window.prepareAwarenessRail?.();
+    ensureAwarenessRail();
     const topic = u.active_topic || u.topic_shift?.new_topic;
     if (topic) {
       const topicEl = document.getElementById('summary-topic');
@@ -134,27 +151,35 @@
 
     const events = Array.isArray(u.noticing) ? u.noticing : [];
     if (events.length) {
-      events.forEach(event => {
-        if (!event?.title || !event?.note) return;
-        window.addAwarenessNote(event.title, event.note, toneFor(event.kind, event.importance));
-      });
-    } else {
+      events.forEach(addNotice);
+    } else if (u.topic_shift?.shifted) {
       const shift = u.topic_shift;
-      if (shift?.shifted) {
-        const from = shift.previous_topic || 'the earlier thread';
-        const to = shift.new_topic || topic || 'a new direction';
-        if (shift.relation === 'returning') window.addAwarenessNote('Interesting — we came back to this', `We’re returning to ${to}. I kept the earlier thread with us.`, 'purple');
-        else window.addAwarenessNote('Hmm, we changed direction', `We moved from ${from} to ${to}. I’m keeping both threads in view.`, 'orange');
-      }
+      const from = shift.previous_topic || 'the earlier thread';
+      const to = shift.new_topic || topic || 'a new direction';
+      addNotice(shift.relation === 'returning'
+        ? {kind:'return', title:'Interesting — we came back to this', note:`We’re returning to ${to}. I kept the earlier thread with us.`}
+        : {kind:'topic-shift', title:'Hmm, we changed direction', note:`We moved from ${from} to ${to}. I’m keeping both threads in view.`});
     }
+  }
 
-    const timeline = document.getElementById('continuity-timeline');
-    if (timeline && events.length) {
-      timeline.querySelector('.empty-state')?.remove();
-      events.forEach(event => {
-        if (!event?.title || !event?.note) return;
-        timeline.insertAdjacentHTML('beforeend', `<div><span class="timeline-dot ${toneFor(event.kind,event.importance)}"></span><b>${esc(event.title)} <small>${new Intl.DateTimeFormat([], {hour:'numeric', minute:'2-digit'}).format(new Date())}</small></b><p>${esc(event.note)}</p></div>`);
-      });
-    }
+  window.applyUnderstanding = renderNoticing;
+  window.addAwarenessNote = (title, text, tone='mint') => addNotice({kind:tone,title,note:text});
+  ensureAwarenessRail();
+
+  /* The app's original chat function was defined before this file loads. Listen to
+     chat responses directly so the noticing panel cannot miss an understanding update. */
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = async (...args) => {
+    const response = await nativeFetch(...args);
+    try {
+      const input = args[0];
+      const url = typeof input === 'string' ? input : input?.url || '';
+      const method = String(args[1]?.method || 'GET').toUpperCase();
+      if (url.includes('/api/chat') && method === 'POST') {
+        const copy = response.clone();
+        copy.json().then(data => renderNoticing(data?.understanding)).catch(() => {});
+      }
+    } catch (_) {}
+    return response;
   };
 })();
