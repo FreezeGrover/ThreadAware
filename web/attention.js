@@ -132,4 +132,11 @@
   }
 
   window.addEventListener('load', () => { refreshConfigurationStatus(); setTimeout(professionalizePlaceholders,350); });
+
+  // Load the anonymous workspace layer after the main chat helpers exist. This keeps
+  // each browser's conversation and ThreadAware memory isolated from every other browser.
+  const workspaceScript = document.createElement('script');
+  workspaceScript.src = 'workspace.js';
+  workspaceScript.defer = true;
+  document.head.appendChild(workspaceScript);
 })();
